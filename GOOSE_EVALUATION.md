@@ -19,6 +19,56 @@ establish production readiness for a large voxel game, a many-thousand-machine f
 long-lived commercial engine. Language/compiler diagnostics, profiling support and scaling
 algorithms need further work.
 
+## Full-detail survey terrain follow-up
+
+Player feedback distinguished the small high-detail ground square from distant foliage. The
+new independent visual cache extends two-metre terrain from the original 416 m gameplay
+window to a default 2,176 m visual window: about 27× its area, with 289 visual tiles and the
+same 169 gameplay chunks. F1 Controls exposes a separate 512–2,048 m survey detail radius.
+Distant foliage still uses its existing representations; this feature increases terrain detail.
+
+An initial monolithic expanded-ring prototype was discarded. Its headless geometry test took
+about 8,011 ms to rebuild a 2,560 m square, which could fall behind a moving camera. The final
+implementation reuses 128 m visual tiles and generates only missing/dirty tiles with two
+isolated Goose workers. A 128 m tile contains 26,112 vertices including skirts and takes about
+22.29 ms in the debug headless geometry test. Those timings describe different workload sizes,
+not a like-for-like compiler speed comparison.
+
+Memory/lifetime design: a reusable fixed-record pool is capped at 1,089 visual tiles; each
+record explicitly owns one native buffer. Jobs contain values and a filtered inline edit
+snapshot; results contain one approximately 1.04 MB flat vertex payload. Eight jobs may be
+outstanding, and two result uploads are allowed per frame. Monotonic tickets reject stale
+results after eviction or slot reuse. Thread-local scratch dies per tile job; no shared mutable
+world, general allocator or new project C/C++ was introduced. Terrain edits invalidate only
+touching tiles, including their one-cell lighting halos.
+
+The graphical lifecycle regression retained 81 slots through travel, distant relocation,
+suspend/re-enter and edits. It rejected eight stale results, balanced 297 buffer uploads with
+297 releases, and regenerated four tiles for one boundary edit. No gameplay chunks were
+allocated by that regression. The full gameplay/graphics suite passes.
+
+Measured on the development M5 Max at 1920×1080 with synchronous GPU completion:
+
+| Scenario | Submitted triangles | p50 / p95 / p99 |
+|---|---:|---:|
+| Low-flight view, camera (465, −854), 45 m above ground, colony load 512 | 6.06 million | 3.40 / 4.85 / 5.20 ms |
+| 9,000-frame full-game rapid streaming | 6.06 million at the end | 3.58 / 5.97 / 7.19 ms |
+
+The streaming run generated 884 visual tiles while retaining 289 visual slots and 289 live
+visual buffers, with zero pending jobs at the final sample. Gameplay remained at 169 chunk
+slots and 636 entities. This is bounded regression evidence, not a long-session OS/GPU memory
+measurement or a guarantee at the maximum detail setting and boosted speed.
+
+Ground colour/AO use cached halo samples to avoid a small lighting square. Sparse edits are
+preserved in the visual geometry. Near gameplay terrain remains authoritative for interaction
+and exposed-soil materials. Distant plant anchors now use procedural elevation with the same
+15 cm visual bias, so the new fine surface does not bury the low-detail vegetation.
+
+Evidence: [full tests](artifacts/detail-radius-tests.log),
+[static timing](artifacts/detail-radius-static.log),
+[streaming timing](artifacts/detail-radius-streaming.log), and
+[actual low-flight capture](artifacts/detail-radius.png).
+
 ## Distant vegetation and bounded uploads
 
 The next player screenshot exposed a separate limitation: correctly centered detailed chunks

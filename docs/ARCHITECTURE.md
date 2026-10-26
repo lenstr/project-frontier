@@ -12,6 +12,7 @@ packages provide the GPU/window/input interface, immediate-mode text/UI and PCM 
 | `src/entities.goose` | Reusable entity slots, generational handles, independent inventories/queues/edges |
 | `src/world.goose` | Seeded heightfield, sparse edits, bounded streaming cache, isolated generation workers |
 | `src/vegetation.goose` | Shared deterministic grove placement and visual-only distant plants/canopies |
+| `src/visual_detail.goose` | Independent two-metre visual terrain tiles, reusable slots and two mesh workers |
 | `src/horizon.goose` | Four cached terrain LOD rings, staged replacement and explicit GPU retirement |
 | `src/navigation.goose` | Bounded A* and route following over edited terrain and building obstacles |
 | `src/sim.goose` | Deposits, mining, construction, recipes, power, resource transport, robots, objective |
@@ -139,6 +140,28 @@ foliage receives an additional haze floor between 1.5 and 3.5 km to preserve dep
 Coarse fallback neither casts nor receives local shadows. Shadow-map borders fade, and survey
 shadows use grounded focus. Distant terrain omits fine edits; detailed chunks preserve them.
 Queue-copy, worker CPU and GPU-upload times are separate measurements in the developer panel.
+
+Survey flight additionally streams a separate full-detail terrain cache. `visual_detail` uses
+128 m tiles with a two-metre grid, a one-cell AO halo and skirts. At the default 1,024 m radius,
+17×17 tiles cover 2,176 m across, independently of the 13×13 gameplay-chunk window. The F1
+Controls slider spans 512–2,048 m; the maximum is 33×33 visual tiles (1,089 reusable slots).
+Two isolated workers receive flat jobs containing only coordinates, seed, slot/ticket and
+nearby edit values. Results carry 26,112 inline vertices, about 1.04 MB per tile. At most eight
+jobs are outstanding; the main thread polls and uploads at most two results per frame.
+
+Moving the camera evicts departing rows/columns and queues only missing or dirty tiles,
+nearest first. Old tickets reject late results even when a slot has already been reused.
+Edits invalidate only tiles touching old/new edited grid points, including their AO halos.
+Sparse deltas apply directly to cached grid samples. Flat-pad colours and concavity shading
+match gameplay terrain; the visual surface has only 15 cm of depth bias. Distant plant roots
+use the same procedural elevation, preventing the finer surface from burying them.
+
+Flight entry from the CLI explicitly preloads this cache; interactive entry fills it in the
+background. Leaving flight releases active visual meshes while queued results drain through
+the normal ticket checks. Shutdown joins both workers and checks upload/release balance.
+F1 World exposes active/queued tiles, worker CPU and upload cost. Benchmark JSON records radius,
+active tiles, retained tile slots, generated tiles and live meshes separately from gameplay
+chunks and distant LOD batches. The suit, AI, collisions and save schema use the original world.
 
 `world::height` samples the procedural field plus edits independently of residency and follows
 the same diagonal split as the mesh. Collision and navigation therefore work before a chunk's

@@ -92,6 +92,9 @@ Flight terrain covers 12–16 km. Visual-only trees and hoodoos continue as redu
 meshes to about 900 m, grove canopies to 2.56 km, and silhouettes to 6.14 km. These do not expand
 the simulation radius. Background generation and small GPU uploads keep streaming separate
 from the frame loop.
+Full-detail ground has its own 1,024 m flight radius: 2,176 m across with a two-metre grid,
+about 27× the default gameplay window's area. Change **F1 → Controls → Survey detail radius**
+from 512 to 2,048 m. Only missing visual tiles stream in as the camera moves.
 The HUD shows altitude, speed and controls; the developer panel also has flight buttons and
 a 10–300 m/s speed slider. Mouse wheel adjusts that speed, and Shift multiplies it by four.
 

@@ -20,6 +20,7 @@ import src.showcase;
 import src.free_flight;
 import src.flight_playtest;
 import src.memory;
+import src.visual_detail;
 
 var yaw: f32 = 0.873;
 var pitch: f32 = 0.24;
@@ -214,6 +215,13 @@ fn streaming_focus() -> float3 {
     }
     let focus = flight::stream_focus(world::height(eye.x, eye.z));
     position(focus.x, focus.z)
+}
+
+fn terrain_detail_radius() -> f32 {
+    if flight::enabled {
+        return dev::settings.survey_detail_radius;
+    }
+    radius * 32.0
 }
 
 fn blocked(p: float3) -> bool {
@@ -617,6 +625,12 @@ fn report() {
         ",\n  \"generation_cpu_total_ms\": ", world::generation_total_ms,
         ",\n  \"queue_calls_total_ms\": ", world::transfer_ms,
         ",\n  \"quality_radius\": ", radius,
+        ",\n  \"visual_detail_radius_m\": ", dev::settings.survey_detail_radius,
+        ",\n  \"visual_detail_tiles\": ", detail::loaded,
+        ",\n  \"visual_detail_pending\": ", detail::pending,
+        ",\n  \"visual_detail_tile_slots\": ", detail::tiles.len,
+        ",\n  \"visual_detail_meshes\": ", detail::live_meshes,
+        ",\n  \"visual_detail_generated\": ", detail::generated,
         ",\n  \"horizon_meshes\": ", horizon::mesh_count,
         ",\n  \"horizon_triangles\": ", horizon::triangles,
         ",\n  \"submitted_triangles\": ", render::triangles,
@@ -1040,6 +1054,7 @@ fn run_frames() -> i64 {
         sample.stream_ms = (clock() - stream_started) * 1000.0;
         let mesh_started = clock();
         scene::sync(dev::settings.mesh_budget);
+        detail::stream(focus, terrain_detail_radius(), flight::enabled, 8);
         horizon::update(focus, radius * 32.0, render::horizon_edge, 1, scene::vegetation);
         sample.mesh_ms = (clock() - mesh_started) * 1000.0;
         hud::mesh_ms = sample.mesh_ms;
@@ -1128,6 +1143,7 @@ fn main() {
     hud::init();
     dev::init();
     horizon::init();
+    detail::init();
     stats::reset_history();
     dev::settings.detail_radius = radius;
     dev::settings.shadows = shadows;
@@ -1210,6 +1226,13 @@ fn main() {
     if flight::enabled {
         render::horizon_edge = flight::horizon_distance(world::height(eye.x, eye.z));
     }
+    if flight::enabled {
+        let diameter = detail::tile_radius(terrain_detail_radius()) * 2 + 1;
+        for batch in (diameter * diameter + detail::MAX_JOBS - 1) / detail::MAX_JOBS + 1 {
+            detail::stream(streaming_focus(), terrain_detail_radius(), true, detail::MAX_JOBS);
+            detail::drain();
+        }
+    }
     horizon::update(streaming_focus(), radius * 32.0, render::horizon_edge, 1, scene::vegetation);
     horizon::drain();
     dev::settings.day_phase = sim::day;
@@ -1228,6 +1251,7 @@ fn main() {
     );
     dev::shutdown();
     hud::shutdown();
+    detail::shutdown();
     horizon::shutdown();
     scene::shutdown();
     sound::shutdown();

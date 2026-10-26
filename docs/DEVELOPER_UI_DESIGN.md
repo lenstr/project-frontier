@@ -205,3 +205,12 @@ data where available (for example `radius 8: 289 chunks, last measured 1.9 ms me
 
 GPU timestamp queries (if the `gfx` package lacks them, omit the GPU series), saved profiles,
 flame graphs, remote telemetry, editing entity state from Inspect.
+
+
+## Implemented extension: survey terrain detail
+
+Controls now distinguishes **Gameplay chunk radius** (the existing 2–8 chunk setting) from
+**Survey detail radius** (512–2,048 m, default 1,024 m). The latter controls independently
+streamed two-metre visual terrain tiles and does not enlarge simulation residency. World
+shows the configured visual radius, active/queued tile counts, cumulative visual worker CPU
+and GPU-upload cost. Existing row styling, reset controls and units apply.

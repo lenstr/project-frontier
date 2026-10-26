@@ -165,12 +165,21 @@ fn lod_surface(x: f32, z: f32, center: float3, near_radius: f32, step: f32, oute
     point
 }
 
-fn face(out: ft::Vertex[>..]&, a: float3, b: float3, c: float3) {
+fn face(
+    out: ft::Vertex[>..]&, a: float3, b: float3, c: float3,
+    close_detail: bool = false, neighbor_mean: f32 = 0.0,
+) {
     let normal = normalize(cross(b - a, c - a));
     let center = (a + b + c) * ft::splat(1.0 / 3.0);
     // Shared palette/climate, without close terrain's nine height samples for
     // concavity shading or tiny persistent edits that this LOD cannot resolve.
-    let col = world::far_color(center.x, center.z, center.y, normal);
+    var col = world::far_color(center.x, center.z, center.y + (if close_detail { 0.15 } else { 0.0 }), normal);
+    if close_detail {
+        let occlusion = 1.0 - 0.15 * world::smooth(0.5, 1.3, neighbor_mean - center.y);
+        col.x *= occlusion;
+        col.y *= occlusion;
+        col.z *= occlusion;
+    }
     out.push(ft::Vertex { a, normal, col });
     out.push(ft::Vertex { b, normal, col });
     out.push(ft::Vertex { c, normal, col });
@@ -322,6 +331,53 @@ fn build_ring(
     // Buried walls cover any vertical interpolation difference at those joins.
     boundary(out, center, inner, step, near_radius, center, step, outer);
     boundary(out, center, outer, step, near_radius, center, step, outer);
+    out
+}
+
+// Independent 128 m tiles retain the gameplay terrain's two-metre grid and
+// lighting. A one-cell halo supplies matching concavity samples at tile edges.
+fn build_detail_tile(cx: i64, cz: i64) -> ft::Vertex[>..] {
+    let cells = 64;
+    let row = cells + 3;
+    var points: float3[>..] = [];
+    for zi in -1..cells + 2 {
+        let z: f32 = cz * 128.0 + zi * 2.0;
+        for xi in -1..cells + 2 {
+            let x: f32 = cx * 128.0 + xi * 2.0;
+            points.push(float3 { x, world::base_height(x, z) - 0.15, z });
+        }
+    }
+    // Sparse edits map directly to grid vertices, without scanning an edit
+    // collection for every procedural height sample.
+    for edit in world::edits {
+        let xi = edit.gx - cx * cells + 1;
+        let zi = edit.gz - cz * cells + 1;
+        if xi >= 0 && zi >= 0 && xi < row && zi < row {
+            points[zi * row + xi].y += edit.delta;
+        }
+    }
+    var out: ft::Vertex[>..] = [];
+    for zi in cells {
+        for xi in cells {
+            let index = (zi + 1) * row + xi + 1;
+            var mean: f32 = 0.0;
+            for dz in -1..2 {
+                for dx in -1..2 {
+                    mean += points[index + dz * row + dx].y;
+                }
+            }
+            mean /= 9.0;
+            face(out, points[index], points[index + row], points[index + row + 1], true, mean);
+            face(out, points[index], points[index + row + 1], points[index + 1], true, mean);
+        }
+    }
+    for i in cells {
+        edge_skirt(out, points[row + i + 1], points[row + i + 2]);
+        let back = (cells + 1) * row + i + 1;
+        edge_skirt(out, points[back + 1], points[back]);
+        edge_skirt(out, points[(i + 2) * row + 1], points[(i + 1) * row + 1]);
+        edge_skirt(out, points[(i + 1) * row + cells + 1], points[(i + 2) * row + cells + 1]);
+    }
     out
 }
 

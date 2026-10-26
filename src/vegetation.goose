@@ -75,7 +75,7 @@ fn foliage_color(biome: i64, variant: u32) -> float4 {
 }
 
 fn low_plant(out: ft::Vertex[>..]&, plant: Plant, biome: i64) {
-    let p = float3 { plant.x, world::visual_height(plant.x, plant.z), plant.z };
+    let p = float3 { plant.x, world::base_height(plant.x, plant.z) - 0.15, plant.z };
     let size = plant.size;
     let color = foliage_color(biome, plant.hash);
     if biome == 1 {
@@ -92,7 +92,7 @@ fn low_plant(out: ft::Vertex[>..]&, plant: Plant, biome: i64) {
 }
 
 fn canopy(out: ft::Vertex[>..]&, group: Grove, width: f32) {
-    let p = float3 { group.x, world::visual_height(group.x, group.z), group.z };
+    let p = float3 { group.x, world::base_height(group.x, group.z) - 0.15, group.z };
     let size: f32 = 2.2 + ((group.hash >> 8) & 255) / 255.0 * 0.8;
     let height: f32 = if group.biome == 2 { 4.5 * size } else { 4.8 * size };
     let color = foliage_color(group.biome, group.hash);

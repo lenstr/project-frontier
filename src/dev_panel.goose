@@ -16,6 +16,7 @@ import .scene;
 import .telemetry;
 import .horizon;
 import .memory;
+import .visual_detail;
 
 let ROBOTO: const u8[:] = embed_file("../assets/Roboto-Regular.ttf");
 let INK = ui::Color { 27, 35, 64, 248 };
@@ -39,6 +40,7 @@ struct Settings {
     day_phase: f32 = 0.375,
     lock_time: bool = false,
     detail_radius: i64 = 6,
+    survey_detail_radius: f32 = 1024.0,
     mesh_budget: i64 = 4,
     fog_start: f32 = 140.0,
     fog_distance: f32 = 1600.0,
@@ -613,6 +615,10 @@ fn world_page() {
     metric("Horizon meshes / triangles", str(count_text(horizon::mesh_count), " / ", count_text(horizon::triangles)), IVORY);
     metric("Distant plants / canopies", count_text(horizon::foliage_objects), CYAN);
     metric("Distant foliage triangles", count_text(horizon::foliage_triangles), IVORY);
+    metric("Visual terrain detail radius", str(count_text(round(settings.survey_detail_radius) as i64), " m"), CYAN);
+    metric("Full-detail visual tiles / queued", str(count_text(detail::loaded), " / ", count_text(detail::pending)), CYAN);
+    milliseconds("Visual detail worker CPU / total", detail::generation_ms);
+    milliseconds("Visual detail GPU uploads / total", detail::upload_ms);
     metric("Foliage draw distance", "6 144 m", CYAN);
     metric("Effective atmospheric visibility", str(count_text(round(render::visibility) as i64), " m"), IVORY);
     metric("Horizon rings pending", count_text(horizon::pending_rings), ORANGE);
@@ -895,9 +901,11 @@ fn controls_page() {
         settings.lock_time = true;
     }
     heading("WORLD / STREAMING");
-    radius_bounds = integer_row("Detailed radius", settings.detail_radius, 2, 8, 1, 6);
+    radius_bounds = integer_row("Gameplay chunk radius", settings.detail_radius, 2, 8, 1, 6);
     let across = settings.detail_radius * 2 + 1;
     caption(str(settings.detail_radius * 32, " m radius / ", count_text(across * across), " detailed chunks"));
+    float_row("Survey detail radius", settings.survey_detail_radius, 512.0, 2048.0, 256.0, 1024.0, " m");
+    caption("Two-metre visual terrain; simulation chunk count stays separate.");
     integer_row("Mesh jobs / frame", settings.mesh_budget, 1, 12, 1, 4);
     heading("ATMOSPHERE / SCENE");
     float_row("Fog starts", settings.fog_start, 80.0, 400.0, 10.0, 140.0, " m");

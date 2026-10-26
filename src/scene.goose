@@ -10,6 +10,7 @@ import .entities;
 import .sim;
 import .horizon;
 import .vegetation;
+import .visual_detail;
 import .showcase;
 
 let INK = float4 { 0.106, 0.137, 0.251, 1.0 };
@@ -1163,6 +1164,7 @@ fn draw(
         }
         all_meshes.push(detail);
     }
+    detail::append_meshes(all_meshes);
     all_meshes.push(grass_mesh);
     all_meshes.push(rail_mesh);
     let horizon_fade = if horizon::fading { horizon::fade_progress() } else { 0.0 };

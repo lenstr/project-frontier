@@ -19,12 +19,12 @@ case "$mode" in
     ;;
 esac
 "$compiler" format --check frontier.goose src tests
-for name in entities world gameplay persistence telemetry showcase free_flight memory vegetation; do
+for name in entities world gameplay persistence telemetry showcase free_flight memory vegetation survey_detail; do
   "$compiler" build "tests/${name}_test.goose" -o "build/${name}_test" --debug
   "build/${name}_test"
 done
 if [ "$mode" = --graphics ]; then
-  for name in dev_panel horizon horizon_motion shadow_boundary render_cache; do
+  for name in dev_panel horizon horizon_motion visual_detail shadow_boundary render_cache; do
     "$compiler" build "tests/${name}_test.goose" -o "build/${name}_test" --debug
     "build/${name}_test"
   done
