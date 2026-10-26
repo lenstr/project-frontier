@@ -1,0 +1,245 @@
+{
+  "compiler": "goose v2026.3+git.a108677d300c (runtime fba599d313fe)",
+  "compiler_sha256": "48267da4e64c2adeceb6518388b8f2a3cef85649897899fd21d74d7499d42260",
+  "test_sha256": "8592a1d5640e7e36461ccb52c1f1d5f6edfd05d0aa5a0f2f795085158c423926",
+  "payload_bytes": 67108864,
+  "sampling_interval_seconds": 0.07,
+  "cases": [
+    {
+      "trim_enabled": false,
+      "stdout": [
+        "MEMORY_PHASE released_scope keep_pages=true",
+        "MEMORY_PHASE after_request requests=0 ok=false",
+        "PASS memory: scoped scratch, deferred/coalesced trim, live pools preserved, regrowth"
+      ],
+      "samples": [
+        {
+          "seconds": 0.0024532079696655273,
+          "phase": "startup",
+          "rss_bytes": 2490368
+        },
+        {
+          "seconds": 0.07942345784977078,
+          "phase": "released_scope",
+          "rss_bytes": 68730880
+        },
+        {
+          "seconds": 0.15442516701295972,
+          "phase": "released_scope",
+          "rss_bytes": 68730880
+        },
+        {
+          "seconds": 0.22751129185780883,
+          "phase": "released_scope",
+          "rss_bytes": 68730880
+        },
+        {
+          "seconds": 0.3056864170357585,
+          "phase": "released_scope",
+          "rss_bytes": 68730880
+        },
+        {
+          "seconds": 0.38506237510591745,
+          "phase": "released_scope",
+          "rss_bytes": 68730880
+        },
+        {
+          "seconds": 0.46304062474519014,
+          "phase": "released_scope",
+          "rss_bytes": 68730880
+        },
+        {
+          "seconds": 0.5416929167695343,
+          "phase": "released_scope",
+          "rss_bytes": 68730880
+        },
+        {
+          "seconds": 0.6233701668679714,
+          "phase": "released_scope",
+          "rss_bytes": 68730880
+        },
+        {
+          "seconds": 0.7052545421756804,
+          "phase": "released_scope",
+          "rss_bytes": 68730880
+        },
+        {
+          "seconds": 0.7882517501711845,
+          "phase": "after_request",
+          "rss_bytes": 68730880
+        },
+        {
+          "seconds": 0.8703290829434991,
+          "phase": "after_request",
+          "rss_bytes": 68730880
+        },
+        {
+          "seconds": 0.9475655420683324,
+          "phase": "after_request",
+          "rss_bytes": 68730880
+        },
+        {
+          "seconds": 1.024553082883358,
+          "phase": "after_request",
+          "rss_bytes": 68730880
+        },
+        {
+          "seconds": 1.1044334997422993,
+          "phase": "after_request",
+          "rss_bytes": 68730880
+        },
+        {
+          "seconds": 1.1812022081576288,
+          "phase": "after_request",
+          "rss_bytes": 68730880
+        },
+        {
+          "seconds": 1.259523166809231,
+          "phase": "after_request",
+          "rss_bytes": 68730880
+        },
+        {
+          "seconds": 1.3400370418094099,
+          "phase": "after_request",
+          "rss_bytes": 68730880
+        },
+        {
+          "seconds": 1.4195016250014305,
+          "phase": "after_request",
+          "rss_bytes": 68730880
+        },
+        {
+          "seconds": 1.4988885829225183,
+          "phase": "after_request",
+          "rss_bytes": 68730880
+        }
+      ],
+      "released_scope": {
+        "min_rss_bytes": 68730880,
+        "max_rss_bytes": 68730880
+      },
+      "after_request": {
+        "min_rss_bytes": 68730880,
+        "max_rss_bytes": 68730880
+      }
+    },
+    {
+      "trim_enabled": true,
+      "stdout": [
+        "MEMORY_PHASE released_scope keep_pages=false",
+        "MEMORY_PHASE after_request requests=1 ok=true",
+        "PASS memory: scoped scratch, deferred/coalesced trim, live pools preserved, regrowth"
+      ],
+      "samples": [
+        {
+          "seconds": 0.0024710833095014095,
+          "phase": "startup",
+          "rss_bytes": 2457600
+        },
+        {
+          "seconds": 0.07956687500700355,
+          "phase": "released_scope",
+          "rss_bytes": 68714496
+        },
+        {
+          "seconds": 0.15784458303824067,
+          "phase": "released_scope",
+          "rss_bytes": 68714496
+        },
+        {
+          "seconds": 0.23521016724407673,
+          "phase": "released_scope",
+          "rss_bytes": 68714496
+        },
+        {
+          "seconds": 0.31222058320418,
+          "phase": "released_scope",
+          "rss_bytes": 68714496
+        },
+        {
+          "seconds": 0.39323779195547104,
+          "phase": "released_scope",
+          "rss_bytes": 68714496
+        },
+        {
+          "seconds": 0.47107787523418665,
+          "phase": "released_scope",
+          "rss_bytes": 68714496
+        },
+        {
+          "seconds": 0.5527398749254644,
+          "phase": "released_scope",
+          "rss_bytes": 68714496
+        },
+        {
+          "seconds": 0.6317009581252933,
+          "phase": "released_scope",
+          "rss_bytes": 68714496
+        },
+        {
+          "seconds": 0.7119355420581996,
+          "phase": "released_scope",
+          "rss_bytes": 68714496
+        },
+        {
+          "seconds": 0.7909939582459629,
+          "phase": "after_request",
+          "rss_bytes": 1622016
+        },
+        {
+          "seconds": 0.8685856671072543,
+          "phase": "after_request",
+          "rss_bytes": 1622016
+        },
+        {
+          "seconds": 0.9452622081153095,
+          "phase": "after_request",
+          "rss_bytes": 1622016
+        },
+        {
+          "seconds": 1.0270517081953585,
+          "phase": "after_request",
+          "rss_bytes": 1622016
+        },
+        {
+          "seconds": 1.105455375276506,
+          "phase": "after_request",
+          "rss_bytes": 1622016
+        },
+        {
+          "seconds": 1.1855467082932591,
+          "phase": "after_request",
+          "rss_bytes": 1622016
+        },
+        {
+          "seconds": 1.2639785832725465,
+          "phase": "after_request",
+          "rss_bytes": 1622016
+        },
+        {
+          "seconds": 1.3415831252932549,
+          "phase": "after_request",
+          "rss_bytes": 1622016
+        },
+        {
+          "seconds": 1.4212207081727684,
+          "phase": "after_request",
+          "rss_bytes": 1622016
+        },
+        {
+          "seconds": 1.5019760001450777,
+          "phase": "after_request",
+          "rss_bytes": 5799936
+        }
+      ],
+      "released_scope": {
+        "min_rss_bytes": 68714496,
+        "max_rss_bytes": 68714496
+      },
+      "after_request": {
+        "min_rss_bytes": 1622016,
+        "max_rss_bytes": 5799936
+      }
+    }
+  ]
+}

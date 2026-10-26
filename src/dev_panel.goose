@@ -15,6 +15,7 @@ import .render;
 import .scene;
 import .telemetry;
 import .horizon;
+import .memory;
 
 let ROBOTO: const u8[:] = embed_file("../assets/Roboto-Regular.ttf");
 let INK = ui::Color { 27, 35, 64, 248 };
@@ -63,6 +64,7 @@ struct Actions {
     churn_rounds: i64,
     toggle_flight: bool,
     reframe_flight: bool,
+    trim_memory: bool,
 }
 
 var open: bool = false;
@@ -102,6 +104,7 @@ var last_churn: ChurnResult;
 var tab_bounds: ui::Rect[5];
 var spawn_bounds: ui::Rect;
 var destroy_bounds: ui::Rect;
+var trim_bounds: ui::Rect;
 var speed_bounds: ui::Rect;
 var day_bounds: ui::Rect;
 var radius_bounds: ui::Rect;
@@ -460,7 +463,7 @@ fn header() {
     };
     ui::label_colored(context, fps, ui::TEXT_RIGHT, IVORY);
     let screen = gfx::screen_size();
-    caption(str("Goose v2026.3 / release / ", screen.x, " x ", screen.y, " / panel ", time_text(panel_ms)));
+    caption(str("Goose a108677d300c / release / ", screen.x, " x ", screen.y, " / panel ", time_text(panel_ms)));
     ui::layout_row_dynamic(context, 21.0, 3);
     let values: f64[3] = [stats::p50_ms, stats::p95_ms, stats::p99_ms];
     let names: const u8[:][3] = ["p50 ", "p95 ", "p99 "];
@@ -733,6 +736,17 @@ fn goose_page() {
     heading("MEMORY / MEASUREMENT BOUNDARY");
     metric("Logical payload estimate", str(decimal(stats::counters.payload_estimate_bytes / 1000000.0, 1), " MB"), CYAN);
     wrapped("Estimate excludes OS residency, GPU/native driver allocations and pool freelist metadata. RSS and Goose stack byte high-water marks are unavailable in this overlay.", 58.0);
+    ui::layout_row_dynamic(context, 30.0, 1);
+    trim_bounds = ui::widget_bounds(context);
+    if ui::button_label(context, "Release unused stack pages") {
+        actions.trim_memory = true;
+    }
+    wrapped("Main-thread stacks only. Live data, retained pool capacity and GPU resources stay allocated.", 42.0);
+    if memory::requests > 0 {
+        metric("Last page-release request", str(if memory::last_ok { "OK / " } else { "Failed / " },
+            time_text(memory::last_ms)), if memory::last_ok { CYAN } else { ORANGE });
+        metric("Page-release requests / failures", str(count_text(memory::requests), " / ", count_text(memory::failures)), IVORY);
+    }
     if stats::counters.stale_handles_rejected < 0 {
         metric("Stale-handle rejection count", "Not instrumented", MUTED);
     } else {

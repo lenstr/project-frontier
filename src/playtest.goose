@@ -197,7 +197,7 @@ fn load_and_stress() {
             ",\"mined\":", sim::bag[0],
             ",\"entity_slots\":", ecs::entities.len,
             ",\"chunks_generated\":", world::generated,
-            ",\"actions\":\"walk,mine,build menu,place,save,walk,load,spawn1000,destroy1000,stream,load\"}\n"
+            ",\"actions\":\"walk,mine,build menu,place,save,walk,load,spawn1000,destroy1000,stream,load\"}\n",
         );
         assert(write_file("artifacts/input-test.json", result));
         print("INPUT PLAYTEST PASS ", result);

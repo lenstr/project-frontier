@@ -340,7 +340,7 @@ fn main() {
         ",\n  \"conservation_ferrite_units\": ", initial.ferrite,
         ",\n  \"conservation_glacite_units\": ", initial.glacite,
         ",\n  \"conservation_stone_units\": ", initial.stone,
-        ",\n  \"resource_conservation\": true,\n  \"pool_plateau\": true\n}\n"
+        ",\n  \"resource_conservation\": true,\n  \"pool_plateau\": true\n}\n",
     );
     if configuration == "debug" {
         assert(write_file("artifacts/network-stress-debug.json", json));
@@ -349,18 +349,18 @@ fn main() {
     }
     print(
         "network stress: PASS; ", active, " entities, ", CELLS * 2, " active production machines, ",
-        ROBOTS, " robots"
+        ROBOTS, " robots",
     );
     print("simulation tick ms: mean=", mean, " p50=", p50, " p95=", p95, " p99=", p99, " max=", maximum);
     print(
         "production=", production_crafted, " peak_packets=", peak_packets, " peak_queue_entries=", peak_queues,
         " paths=", measured_paths, " failed_paths=", measured_failures,
-        " path_total_ms=", measured_navigation_ms
+        " path_total_ms=", measured_navigation_ms,
     );
     print(
         "conservation: ferrite=", initial.ferrite, " glacite=", initial.glacite, " stone=", initial.stone,
         "; churn=", CHURN * CHURN_ROUNDS, " reused structures, plateau slots=", slot_plateau,
-        " inventory_cells=", inventory_plateau, " edge_cells=", edge_plateau, " churn_ms=", churn_ms
+        " inventory_cells=", inventory_plateau, " edge_cells=", edge_plateau, " churn_ms=", churn_ms,
     );
     sim::shutdown();
 }

@@ -55,7 +55,7 @@ fn main() {
     let start = clock();
     print(
         "GPU_STRESS_BEGIN width=1920 height=1080 driver=", gfx::driver(),
-        " rounds=", ROUNDS, " churn=", CHURN
+        " rounds=", ROUNDS, " churn=", CHURN,
     );
     for round in ROUNDS {
         let round_start = clock();
@@ -92,7 +92,7 @@ fn main() {
             let draw_start = clock();
             scene::draw(
                 sim::player + float3 { 24.0, 21.0, 29.0 }, sim::player + float3 { 0.0, 1.0, 0.0 },
-                sim::day, sim::elapsed, ecs::Handle {}, 0, float3_0, true, true
+                sim::day, sim::elapsed, ecs::Handle {}, 0, float3_0, true, true,
             );
             let draw_ms = (clock() - draw_start) * 1000.0;
             // Include submitted GPU work and wait for completion, not just
@@ -141,7 +141,7 @@ fn main() {
             ",\"inventory_cells\":", ecs::inventories.len, ",\"queue_cells\":", ecs::queues.len,
             ",\"edge_cells\":", ecs::edges.len, ",\"chunk_slots\":", world::chunks.len,
             ",\"mesh_count\":", scene::mesh_count, ",\"terrain_vertices\":", scene::terrain_vertices,
-            ",\"dynamic_gpu_capacity_bytes\":", render::dynamic_capacity, "}"
+            ",\"dynamic_gpu_capacity_bytes\":", render::dynamic_capacity, "}",
         );
         print(
             "GPU_STRESS_ROUND round=", round, " elapsed_s=", clock() - start,
@@ -149,7 +149,7 @@ fn main() {
             " inventory_cells=", ecs::inventories.len, " queue_cells=", ecs::queues.len,
             " edge_cells=", ecs::edges.len, " chunks=", world::chunks.len,
             " meshes=", scene::mesh_count, " terrain_vertices=", scene::terrain_vertices,
-            " dynamic_capacity=", render::dynamic_capacity
+            " dynamic_capacity=", render::dynamic_capacity,
         );
     }
     sort(frame_ms) { a, b => a < b };
@@ -182,7 +182,7 @@ fn main() {
         ",\"elapsed_s\":", clock() - start, ",\"round_samples\":[", samples,
         "],\"notes\":\"Frames include CPU simulation, scene generation, GPU submission and ",
         "synchronous GPU completion. Streaming and entity churn occur between measured frames. ",
-        "Pool lengths are high-water storage, not live use. RSS is sampled externally.\"\n}\n"
+        "Pool lengths are high-water storage, not live use. RSS is sampled externally.\"\n}\n",
     );
     assert(write_file("artifacts/gpu-stress-results.json", result));
     print(
@@ -191,7 +191,7 @@ fn main() {
         " entity_slots_warmup=", entity_warmup, " final=", ecs::entities.len,
         " inventory_warmup=", inventory_warmup, " final=", ecs::inventories.len,
         " queue_warmup=", queue_warmup, " final=", ecs::queues.len,
-        " edge_warmup=", edge_warmup, " final=", ecs::edges.len
+        " edge_warmup=", edge_warmup, " final=", ecs::edges.len,
     );
     print("GPU_STRESS_CLEANUP_BEGIN elapsed_s=", clock() - start);
     scene::shutdown();

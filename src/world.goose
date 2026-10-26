@@ -314,7 +314,7 @@ fn revision() -> i64 {
 
 thread_fn generate_worker() {
     loop {
-        let job = qget < Job > ();
+        let job = qget<Job>();
         if job.stop {
             break;
         }
@@ -338,8 +338,8 @@ fn init(s: u32) {
     seed = s;
     pending = 0;
     loaded = 0;
-    qlimit < Job > (MAX_JOBS + 2);
-    qlimit < Result > (MAX_JOBS + 2);
+    qlimit<Job>(MAX_JOBS + 2);
+    qlimit<Result>(MAX_JOBS + 2);
     for i in 2 {
         worker_ids[i] = thread_spawn(generate_worker);
     }
@@ -352,7 +352,7 @@ fn find(cx: i64, cz: i64) -> i64 {
             return i;
         }
     }
-    - 1
+    -1
 }
 
 fn apply_edits(c: Chunk&) {
@@ -386,7 +386,7 @@ fn accept(r: Result&) {
 fn collect() {
     loop {
         let start = clock_ns();
-        var r, ok = qpoll < Result > ();
+        var r, ok = qpoll<Result>();
         transfer_ms += (clock_ns() - start) / 1000000.0;
         if !ok {
             break;
@@ -398,7 +398,7 @@ fn collect() {
 fn drain() {
     while pending > 0 {
         let start = clock_ns();
-        var r = qget < Result > ();
+        var r = qget<Result>();
         // This includes waiting; it is reported separately from copy-only timing.
         wait_ms += (clock_ns() - start) / 1000000.0;
         accept(r);
@@ -448,7 +448,7 @@ fn stream(x: f32, z: f32, requested_radius: i64, budget: i64) {
                 assert(chunks.len <= MAX_CHUNKS);
                 let start = clock_ns();
                 let sent_ok = qput(Job {
-                    cx: c.cx, cz: c.cz, slot: slot, ticket: ticket, seed: seed, stop: false
+                    cx: c.cx, cz: c.cz, slot: slot, ticket: ticket, seed: seed, stop: false,
                 });
                 transfer_ms += (clock_ns() - start) / 1000000.0;
                 assert(sent_ok);
@@ -543,17 +543,17 @@ fn terrain_color(x: f32, z: f32, y: f32, n: float3, close_detail: bool) -> float
     let meadow = height_tint(
         float3 { 0.173, 0.478, 0.447 },
         float3 { 0.247, 0.635, 0.557 },
-        float3 { 0.486, 0.812, 0.690 }, t
+        float3 { 0.486, 0.812, 0.690 }, t,
     );
     let amber = height_tint(
         float3 { 0.788, 0.451, 0.239 },
         float3 { 0.886, 0.635, 0.341 },
-        float3 { 0.941, 0.788, 0.541 }, t
+        float3 { 0.941, 0.788, 0.541 }, t,
     );
     let lavender = height_tint(
         float3 { 0.365, 0.310, 0.573 },
         float3 { 0.541, 0.482, 0.761 },
-        float3 { 0.718, 0.643, 0.902 }, t
+        float3 { 0.718, 0.643, 0.902 }, t,
     );
     var col = blend(blend(meadow, amber, arid), lavender, fungal);
     let rock = smooth(0.80, 0.62, n.y);
@@ -568,7 +568,7 @@ fn terrain_color(x: f32, z: f32, y: f32, n: float3, close_detail: bool) -> float
     };
     let cliff = blend(
         blend(float3 { 0.337, 0.376, 0.478 }, strata, arid),
-        float3 { 0.294, 0.267, 0.439 }, fungal
+        float3 { 0.294, 0.267, 0.439 }, fungal,
     );
     col = blend(col, cliff, rock);
     if grove_mask(x, z) >= 0.42 {
@@ -588,7 +588,7 @@ fn terrain_color(x: f32, z: f32, y: f32, n: float3, close_detail: bool) -> float
     if dug > 0.15 {
         let soil = blend(
             float3 { 0.431, 0.294, 0.247 },
-            float3 { 0.290, 0.204, 0.204 }, smooth(1.8, 2.2, dug)
+            float3 { 0.290, 0.204, 0.204 }, smooth(1.8, 2.2, dug),
         );
         col = blend(col, soil, smooth(0.15, 0.60, dug));
     }
@@ -667,22 +667,22 @@ fn mesh(slot: i64) -> ft::Vertex[>..] {
         skirt(
             out,
             float3 { x, ch.heights[i], front },
-            float3 { x + 2.0, ch.heights[i + 1], front }
+            float3 { x + 2.0, ch.heights[i + 1], front },
         );
         skirt(
             out,
             float3 { x + 2.0, ch.heights[16 * GRID + i + 1], front + 32.0 },
-            float3 { x, ch.heights[16 * GRID + i], front + 32.0 }
+            float3 { x, ch.heights[16 * GRID + i], front + 32.0 },
         );
         skirt(
             out,
             float3 { left, ch.heights[(i + 1) * GRID], z + 2.0 },
-            float3 { left, ch.heights[i * GRID], z }
+            float3 { left, ch.heights[i * GRID], z },
         );
         skirt(
             out,
             float3 { left + 32.0, ch.heights[i * GRID + 16], z },
-            float3 { left + 32.0, ch.heights[(i + 1) * GRID + 16], z + 2.0 }
+            float3 { left + 32.0, ch.heights[(i + 1) * GRID + 16], z + 2.0 },
         );
     }
     out

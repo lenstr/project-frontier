@@ -101,6 +101,6 @@ fn main() {
     print("PASS entities: 50000 spawns, stale handles, independent inventories/queues/edges, graph deletion");
     print(
         "pool plateaus: slots=", slots_peak, " inventory=", inventory_peak,
-        " queue=", queue_peak, " edges=", edge_peak, " elapsed_ms=", (clock() - t0) * 1000.0
+        " queue=", queue_peak, " edges=", edge_peak, " elapsed_ms=", (clock() - t0) * 1000.0,
     );
 }

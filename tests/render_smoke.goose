@@ -65,7 +65,7 @@ fn main() {
     assert(render::dynamic_capacity > 0);
     print(
         "render_smoke PASS frames=", drawn, " triangles=", render::triangles,
-        " calls=", render::draw_calls
+        " calls=", render::draw_calls,
     );
     render::release(mesh);
     render::shutdown();

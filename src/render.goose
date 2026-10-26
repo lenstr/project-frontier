@@ -62,7 +62,7 @@ fn box(out: ft::Vertex[>..]&, center: float3, size: float3, col: float4, yaw: f3
         float2 { -1.0, -1.0 },
         float2 { 1.0, -1.0 },
         float2 { 1.0, 1.0 },
-        float2 { -1.0, 1.0 }
+        float2 { -1.0, 1.0 },
     ];
     for face in 6 {
         let sign: f32 = if face % 2 == 0 { 1.0 } else { -1.0 };
@@ -98,7 +98,7 @@ fn chamfered_box(out: ft::Vertex[>..]&, center: float3, size: float3, col: float
                 c + u * ft::splat(du) + v * ft::splat(dv),
                 c - u * ft::splat(du) + v * ft::splat(dv),
                 c - u * ft::splat(du) - v * ft::splat(dv),
-                c + u * ft::splat(du) - v * ft::splat(dv)
+                c + u * ft::splat(du) - v * ft::splat(dv),
             ];
             let a = center + turn(p[0], yaw);
             let b = center + turn(p[1], yaw);
@@ -187,7 +187,7 @@ fn octahedron(out: ft::Vertex[>..]&, center: float3, size: float3, col: float4, 
     let bottom = center - float3 { 0.0, size.y * 0.5, 0.0 };
     let edge: float3[4] = [
         float3 { size.x * 0.5, 0.0, 0.0 }, float3 { 0.0, 0.0, size.z * 0.5 },
-        float3 { -size.x * 0.5, 0.0, 0.0 }, float3 { 0.0, 0.0, -size.z * 0.5 }
+        float3 { -size.x * 0.5, 0.0, 0.0 }, float3 { 0.0, 0.0, -size.z * 0.5 },
     ];
     for i in 4 {
         let a = center + turn(edge[i], yaw);
@@ -329,11 +329,11 @@ fn init() {
     """);
     scene_pipeline = gfx::pipeline(
         scene_vertex, scene_fragment,
-        gfx::PipelineDesc { depth_test: true, depth_write: true, cull: gfx::CULL_NONE }
+        gfx::PipelineDesc { depth_test: true, depth_write: true, cull: gfx::CULL_NONE },
     );
     wire_pipeline = gfx::pipeline(
         scene_vertex, scene_fragment,
-        gfx::PipelineDesc { depth_test: true, depth_write: true, cull: gfx::CULL_NONE, wireframe: true }
+        gfx::PipelineDesc { depth_test: true, depth_write: true, cull: gfx::CULL_NONE, wireframe: true },
     );
     shadow_pipeline = gfx::pipeline(
         embed_shader("vert", """
@@ -349,7 +349,7 @@ fn init() {
             }
         """),
         embed_shader("frag", """ void main() {} """),
-        gfx::PipelineDesc { depth_test: true, depth_write: true, depth_bias: 1.0, depth_bias_slope: 1.5 }
+        gfx::PipelineDesc { depth_test: true, depth_write: true, depth_bias: 1.0, depth_bias_slope: 1.5 },
     );
     sky_pipeline = gfx::pipeline(
         embed_shader("vert", """
@@ -408,7 +408,7 @@ fn init() {
                 color = mix(color, color * color * (3.0 - 2.0 * color), 0.25 * d);
                 result = vec4(color, 1.0);
             }
-        """)
+        """),
     );
     shadow_map = gfx::depth_target(2048, 2048);
     shadow_compare = gfx::shadow_sampler();
@@ -437,7 +437,7 @@ fn draw_meshes(meshes: const Mesh[:], dynamic_count: i64, shadow_pass: bool) {
 // day is phase: 0 sunrise, .25 noon, .5 sunset, .75 midnight.
 fn draw_scene(
     meshes: const Mesh[:], dynamic: const ft::Vertex[:], eye: float3, target: float3,
-    day: f32, seconds: f32, shadows: bool
+    day: f32, seconds: f32, shadows: bool,
 ) {
     triangles = dynamic.len / 3;
     draw_calls = 0;
@@ -475,7 +475,7 @@ fn draw_scene(
     let projection = gfx::perspective(0.95993, aspect, 0.08, 3200.0);
     let camera = CameraUniform {
         gfx::mul(projection, gfx::look_at(eye, target, up_axis)),
-        light_view_proj
+        light_view_proj,
     };
     gfx::begin_pass(gfx::PassDesc { depth: shadow_map });
     if shadows {
@@ -498,7 +498,7 @@ fn draw_scene(
         float4 { right.x, right.y, right.z, 0.0 },
         float4 { up.x, up.y, up.z, 0.0 },
         float4 { sun.x, sun.y, sun.z, dusk },
-        float4 { daylight, aspect * 0.52057, 0.52057, seconds }
+        float4 { daylight, aspect * 0.52057, 0.52057, seconds },
     });
     gfx::draw(3);
     draw_calls++;
@@ -511,7 +511,7 @@ fn draw_scene(
         float4 { fog.x, fog.y, fog.z, fog_density },
         float4 { daylight, if shadows { 1.0 } else { 0.0 }, seconds, dusk },
         float4 { fog_clear, visibility, horizon_edge, 0.0 },
-        float4 { horizon_center.x, horizon_center.y, horizon_center.z, 0.0 }
+        float4 { horizon_center.x, horizon_center.y, horizon_center.z, 0.0 },
     });
     gfx::bind_texture(gfx::FRAGMENT, 0, shadow_map, shadow_compare);
     draw_meshes(meshes, dynamic.len, false);

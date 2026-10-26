@@ -12,18 +12,28 @@ On macOS Apple Silicon, the development executable is `build/frontier`. The macO
 bundle is `build/Project Frontier.app`; double-click it to play. Neither needs the compiler or
 external assets at runtime. The local application is ad-hoc signed, not notarized for distribution.
 
-Build from source with Xcode command-line tools installed:
+Build from source with Xcode command-line tools, CMake 3.27+ and Git installed:
 
 ```sh
 ./tools/build.sh
 ./run.sh
 ```
 
-The bootstrap downloads the official **Goose v2026.3** distribution into ignored `.tools/`.
-The Apple Silicon archive is checksum-pinned. No package manager or custom native bindings are
-needed. Intel macOS and x86-64 Linux bootstrap paths are provided; only Apple Silicon macOS was
-executed and measured here. On other platforms use the official v2026.3 compiler and
-`goose build frontier.goose -o build/frontier`.
+The bootstrap builds **Goose v2026.3+git.a108677d300c**, an immutable upstream snapshot after
+v2026.3, under ignored `.tools/`. The full commit and source-archive SHA-256 are pinned in
+`tools/goose-toolchain.env`. This snapshot contains the upstream formatter and `trim_memory()`;
+it is not a new official release and does not include unmerged PRs. The first build fetches
+the official graphics/audio/UI/physics packages and their native dependencies and can take
+several minutes. Later builds reuse them. `FRONTIER_BUILD_JOBS` sets build parallelism (default 4).
+The native source build supports macOS and Linux; this snapshot was tested on Apple Silicon macOS.
+
+```sh
+./tools/format.sh                   # Official formatter; preserves manual line breaks
+./tools/format.sh --check           # Read-only formatting check, also part of the test runner
+```
+
+The workspace VS Code settings select this exact compiler and enable Goose format-on-save
+through the official extension. Run the bootstrap before opening sources in a fresh checkout.
 
 ```sh
 ./run.sh --resume                   # Restore the last manual save
@@ -111,6 +121,12 @@ changes the streaming radius. Pool lengths and logical byte estimates are applic
 OS residency and GPU-driver memory are measured separately; GPU completion waiting is CPU time,
 not a hardware utilization percentage or GPU timestamp query.
 
+The Goose tab also has **Release unused stack pages**. It queues `trim_memory()` for the end
+of the frame, after temporary geometry/UI scopes return. Large churn, world restore and colony
+shrink operations request it automatically. It releases unused main-thread data-stack pages;
+retained pool capacity, live values and GPU resources remain allocated. The panel reports the
+request's success and duration, not an invented number of freed bytes.
+
 ```sh
 ./tools/test.sh                     # Debug entity/world/gameplay/persistence/telemetry/showcase tests
 ./run.sh --playtest --mute          # Real mouse/key events through the ordinary application
@@ -123,7 +139,8 @@ not a hardware utilization percentage or GPU timestamp query.
 The sustained GPU workload runs 2,500 streaming rounds (50,000 frames):
 
 ```sh
-.tools/goose-v2026.3-macos-arm64/goose build tests/gpu_stress.goose -o build/gpu_stress
+compiler="$(./tools/bootstrap.sh)"
+"$compiler" build tests/gpu_stress.goose -o build/gpu_stress
 ./build/gpu_stress
 ```
 

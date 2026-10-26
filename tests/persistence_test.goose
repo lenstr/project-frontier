@@ -38,13 +38,13 @@ fn main() {
     ecs::entities[smelter.slot].progress = 0.64;
     ecs::entities[smelter.slot].powered = true;
     sim::packets.alloc_ref(sim::Packet {
-        alive: true, source: miner, dest: smelter, kind: 0, count: 2, t: 0.37
+        alive: true, source: miner, dest: smelter, kind: 0, count: 2, t: 0.37,
     });
     sim::packets.alloc_ref(sim::Packet {
-        alive: true, source: ecs::Handle {}, dest: smelter, kind: 1, count: 3, t: 0.41
+        alive: true, source: ecs::Handle {}, dest: smelter, kind: 1, count: 3, t: 0.41,
     });
     sim::packets.alloc_ref(sim::Packet {
-        alive: true, source: miner, dest: ecs::Handle {}, kind: 0, count: 4, t: 0.73
+        alive: true, source: miner, dest: ecs::Handle {}, kind: 0, count: 4, t: 0.73,
     });
     // Generated deposits and stress objects must not leak into save snapshots.
     ecs::spawn(20, float3 { 25.0, 3.0, 20.0 });
@@ -100,7 +100,7 @@ fn main() {
             assert(
                 (p.t == 0.37 && p.count == 2 && ecs::same(p.dest, smelter))
                     || (p.t == 0.41 && p.count == 3 && p.source.slot == -1)
-                    || (p.t == 0.73 && p.count == 4 && p.dest.slot == -1)
+                    || (p.t == 0.73 && p.count == 4 && p.dest.slot == -1),
             );
         }
     }
@@ -143,7 +143,7 @@ fn main() {
                 && ecs::inventories.len == inventory_cells
                 && ecs::queues.len == queue_cells
                 && ecs::edges.len == edge_cells
-                && sim::packets.len == packet_slots
+                && sim::packets.len == packet_slots,
         );
     }
     assert(ecs::amount(miner, 0) == 43);
@@ -158,6 +158,6 @@ fn main() {
     print(
         "persistence: PASS; snapshot_bytes=", bytes,
         " preserved_live=", ecs::alive_count, " pool_slots=", slots,
-        " repeated_loads=50, checksum/truncation/semantic rejection leave state intact"
+        " repeated_loads=50, checksum/truncation/semantic rejection leave state intact",
     );
 }

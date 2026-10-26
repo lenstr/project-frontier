@@ -1,0 +1,8 @@
+{
+    "goose.compilerPath": "${workspaceFolder}/.tools/goose-a108677d300cb0e8bbb842c35a353abe67a20c6c/build/goose",
+    "goose.entryFile": "frontier.goose",
+    "[goose]": {
+        "editor.defaultFormatter": "aardappel.goose-language",
+        "editor.formatOnSave": true
+    }
+}

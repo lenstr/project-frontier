@@ -12,7 +12,7 @@ import .free_flight;
 
 let ROBOTO: const u8[:] = embed_file("../assets/Roboto-Regular.ttf");
 let NAMES: const u8[:][9] = [
-    "Drill", "Smelter", "Solar", "Relay", "Assembler", "Robot", "Depot", "Beacon", "Tool"
+    "Drill", "Smelter", "Solar", "Relay", "Assembler", "Robot", "Depot", "Beacon", "Tool",
 ];
 let KINDS: i64[9] = [2, 3, 4, 5, 6, 7, 9, 8, 0];
 let RESOURCES: const u8[:][5] = ["Ferrite", "Glacite", "Alloy", "Circuits", "Regolith"];
@@ -241,7 +241,7 @@ fn draw_clock_and_power() {
     let clock_text = str(
         "SOL 01   ", cycle, ":",
         if (sim::day * 1440.0) as! i64 % 60 < 10 { "0" } else { "" },
-        (sim::day * 1440.0) as! i64 % 60
+        (sim::day * 1440.0) as! i64 % 60,
     );
     text(right - 242.0, 25.0, 220.0, clock_text, MUTED);
     let power_text = str("POWER  ", sim::supply as! i64, " / ", sim::demand as! i64, " kW");
@@ -374,7 +374,7 @@ fn draw_field_guide() {
         "Robots carry output automatically. E collects it. F deposits cargo.",
         "Assembler makes Circuits. Beacon costs 20 Alloy, 10 Glacite, 8 Circuits.",
         "Connect sufficient power and charge the beacon to finish the mission.",
-        "F5 save. F9 load. F1 developer. G survey flight. Tab closes guide."
+        "F5 save. F9 load. F1 developer. G survey flight. Tab closes guide.",
     ];
     for i in 12 {
         text(x + 24.0, y + 56.0 + i * 26.0, 580.0, lines[i], if i == 0 { CYAN } else { IVORY });
@@ -429,7 +429,7 @@ fn draw_build_menu() {
     }
     text(
         x + 24.0, y + 409.0, 710.0,
-        "B closes     Power links automatically within 14 m     Conveyors: Q then Q", MUTED
+        "B closes     Power links automatically within 14 m     Conveyors: Q then Q", MUTED,
     );
 }
 
@@ -437,11 +437,11 @@ fn draw_completion() {
     panel((width - 520.0) / 2.0, height - 194.0, 520.0, 68.0);
     text(
         (width - 478.0) / 2.0, height - 185.0, 480.0,
-        "TRANSMISSION COMPLETE / YOU ARE NOT ALONE", CYAN
+        "TRANSMISSION COMPLETE / YOU ARE NOT ALONE", CYAN,
     );
     text(
         (width - 478.0) / 2.0, height - 158.0, 480.0,
-        "Mission complete. Keep exploring and expanding your colony.", IVORY
+        "Mission complete. Keep exploring and expanding your colony.", IVORY,
     );
 }
 
@@ -465,7 +465,7 @@ fn draw_diagnostics() {
         var info: u8[>..] = [];
         format(
             info,
-            "FRONTIER / GOOSE v2026.3\n",
+            "FRONTIER / GOOSE a108677d300c\n",
             fps as! i64, " FPS  ", frame_ms, " ms\n",
             ecs::alive_count, " active / ", ecs::entities.len, " entity slots\n",
             world::loaded, " loaded / ", world::chunks.len, " chunk slots\n",
@@ -477,7 +477,7 @@ fn draw_diagnostics() {
             "pool cells: ", ecs::inventories.len, " / ", ecs::queues.len, " / ", ecs::edges.len, "\n",
             "F2 +1000   F3 -1000   F4 stream\n",
             "F6 robot   F7 network   F8 time   O shadows\n",
-            "radius ", quality, "   +/- quality   F5/F9 save/load"
+            "radius ", quality, "   +/- quality   F5/F9 save/load",
         );
         var row: i64 = 0;
         each_split(info, '\n') { line =>

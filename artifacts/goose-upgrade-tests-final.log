@@ -1,0 +1,179 @@
+parsed ok: 274 top-level declarations, 6 file(s)
+typechecked ok: 140 specialization(s), 14 struct/0 enum instance(s); optimized -O2: 12 inlined, 0 base case(s), 24 folded, 0 propagated, 0 tail loop(s), 0 reassociated
+bce: elided 21/54 index and 9/9 slice checks
+wrote /Users/lenstr/.goose/build/prog/entities_test-6a2689b5/entities_test.c (165289 bytes)
+built build/entities_test
+PASS entities: 50000 spawns, stale handles, independent inventories/queues/edges, graph deletion
+pool plateaus: slots=1000 inventory=12064 queue=5339 edges=3002 elapsed_ms=387.70499965175986
+parsed ok: 334 top-level declarations, 7 file(s)
+typechecked ok: 193 specialization(s), 17 struct/0 enum instance(s); optimized -O2: 132 inlined, 0 base case(s), 153 folded, 197 propagated, 0 tail loop(s), 0 reassociated
+bce: elided 56/68 index and 0/0 slice checks
+wrote /Users/lenstr/.goose/build/prog/world_test-e2b46c6d/world_test.c (227681 bytes)
+built build/world_test
+framing climates: amber=0.20936033 weights=vec3<f32> { 0.0, 1.0, 0.0 } fungal=0.91174847 weights=vec3<f32> { 0.0, 0.0, 1.0 }
+framing relief: arid_samples=3 range=-0.56315947..2.3133125 fungal_samples=20 range=-20.366922..-13.550008
+fungal canopy terrain sightline: minimum clearance=4.3540497
+framing colors: amber=vec4<f32> { 0.8263253, 0.5018082, 0.2624962, 1.0 } fungal=vec4<f32> { 0.72050947, 0.6443484, 0.900739, 1.0 }
+terrain properties: PASS; min_height=-33.773766 max_height=69.59947 meadow_open_mask_percent=40.93277748827514
+world: PASS; chunks generated=6799 evicted=6485 slots_high_water=289 edits=14 max_pending=8 generation_ms_total=1973.0770000000023 queue_call_ms=1.8199999999999237 blocking_drain_ms=1018.1859999999903 elapsed_ms=1084.1100001707673 checksum=426.59306555986404
+parsed ok: 463 top-level declarations, 10 file(s)
+typechecked ok: 258 specialization(s), 23 struct/0 enum instance(s); optimized -O2: 217 inlined, 0 base case(s), 109 folded, 437 propagated, 0 tail loop(s), 0 reassociated
+bce: elided 113/207 index and 6/6 slice checks
+wrote /Users/lenstr/.goose/build/prog/gameplay_test-b45068d3/gameplay_test.c (423283 bytes)
+built build/gameplay_test
+progression: PASS; automatic craft count=137 paths=140 failed_paths=0 route_ms=685.3420017287135 game_seconds=202.20773
+gameplay: PASS; packet conservation, component brownouts, 1000-object reuse; elapsed_ms=761.8620004504919
+parsed ok: 493 top-level declarations, 11 file(s)
+typechecked ok: 279 specialization(s), 26 struct/0 enum instance(s); optimized -O2: 141 inlined, 0 base case(s), 72 folded, 137 propagated, 0 tail loop(s), 0 reassociated
+bce: elided 42/108 index and 7/7 slice checks
+wrote /Users/lenstr/.goose/build/prog/persistence_test-aad13016/persistence_test.c (310482 bytes)
+built build/persistence_test
+persistence: PASS; snapshot_bytes=932 preserved_live=4 pool_slots=1000 repeated_loads=50, checksum/truncation/semantic rejection leave state intact
+parsed ok: 495 top-level declarations, 11 file(s)
+typechecked ok: 287 specialization(s), 26 struct/0 enum instance(s); optimized -O2: 265 inlined, 0 base case(s), 105 folded, 329 propagated, 0 tail loop(s), 0 reassociated
+bce: elided 171/275 index and 14/15 slice checks
+wrote /Users/lenstr/.goose/build/prog/telemetry_test-ad3df3d8/telemetry_test.c (532616 bytes)
+built build/telemetry_test
+telemetry: PASS; bounded 240-frame history, nearest-rank percentiles, 4 Hz snapshots, live/free pools, actual slot reuse, system timings; elapsed_ms=17.494000028818846
+parsed ok: 537 top-level declarations, 12 file(s)
+typechecked ok: 308 specialization(s), 27 struct/0 enum instance(s); optimized -O2: 290 inlined, 0 base case(s), 115 folded, 397 propagated, 0 tail loop(s), 0 reassociated
+bce: elided 150/266 index and 6/6 slice checks
+wrote /Users/lenstr/.goose/build/prog/showcase_test-058a3ca3/showcase_test.c (551124 bytes)
+built build/showcase_test
+showcase: PASS; exact32/512/1024/2000 loads, default_robots=100, finite real production, conservation/packet settlement, player ownership, pool plateau, save/forget; elapsed_ms=76.6699998639524
+parsed ok: 237 top-level declarations, 5 file(s)
+typechecked ok: 109 specialization(s), 12 struct/0 enum instance(s); optimized -O2: 22 inlined, 0 base case(s), 7 folded, 23 propagated, 0 tail loop(s), 0 reassociated
+bce: elided 0/0 index and 0/0 slice checks
+wrote /Users/lenstr/.goose/build/prog/free_flight_test-8edf4e56/free_flight_test.c (86753 bytes)
+built build/free_flight_test
+PASS free flight: level movement, altitude, normalized boost, speed/pitch limits, streaming focus, disabled state
+parsed ok: 282 top-level declarations, 7 file(s)
+typechecked ok: 142 specialization(s), 14 struct/0 enum instance(s); optimized -O2: 13 inlined, 0 base case(s), 17 folded, 24 propagated, 0 tail loop(s), 0 reassociated
+bce: elided 4/14 index and 0/2 slice checks
+wrote /Users/lenstr/.goose/build/prog/memory_test-f20a7937/memory_test.c (95808 bytes)
+built build/memory_test
+MEMORY_PHASE released_scope keep_pages=false
+MEMORY_PHASE after_request requests=1 ok=true
+PASS memory: scoped scratch, deferred/coalesced trim, live pools preserved, regrowth
+/Users/lenstr/workspace/personal/dev/repos/project-frontier/src/scene.goose:264: warning: redundant `as f32`: a u32 converts to f32 implicitly here
+/Users/lenstr/workspace/personal/dev/repos/project-frontier/src/scene.goose:296: warning: redundant `as f32`: an i64 converts to f32 implicitly here
+parsed ok: 1819 top-level declarations, 19 file(s)
+typechecked ok: 1066 specialization(s), 89 struct/0 enum instance(s); optimized -O2: 692 inlined, 0 base case(s), 217 folded, 798 propagated, 0 tail loop(s), 0 reassociated
+bce: elided 237/331 index and 25/31 slice checks
+wrote /Users/lenstr/.goose/build/prog/dev_panel_test-8104c507/dev_panel_test.c (2124481 bytes)
+built build/dev_panel_test
+DEV_PANEL_TEST PASS frames=298 tabs=5 slider_speed=2.75 day=0.5520833 radius=7 history=240 action_pulses=1000/1000 pinned_stale=true
+parsed ok: 678 top-level declarations, 10 file(s)
+typechecked ok: 381 specialization(s), 33 struct/0 enum instance(s); optimized -O2: 146 inlined, 0 base case(s), 36 folded, 113 propagated, 0 tail loop(s), 0 reassociated
+bce: elided 11/16 index and 4/4 slice checks
+wrote /Users/lenstr/.goose/build/prog/horizon_test-6970784b/horizon_test.c (248655 bytes)
+built build/horizon_test
+LOD boundary coverage: largest sampled gap=10.444445 skirt_depth=32.0
+horizon: PASS; rings=4, max_live_meshes=8 uploads=28 releases=28 generation_ms=2923.9099994301796 elapsed_ms=3165.670999791473
+/Users/lenstr/workspace/personal/dev/repos/project-frontier/src/scene.goose:264: warning: redundant `as f32`: a u32 converts to f32 implicitly here
+/Users/lenstr/workspace/personal/dev/repos/project-frontier/src/scene.goose:296: warning: redundant `as f32`: an i64 converts to f32 implicitly here
+parsed ok: 950 top-level declarations, 15 file(s)
+typechecked ok: 534 specialization(s), 42 struct/0 enum instance(s); optimized -O2: 295 inlined, 0 base case(s), 119 folded, 280 propagated, 0 tail loop(s), 0 reassociated
+bce: elided 80/115 index and 7/7 slice checks
+wrote /Users/lenstr/.goose/build/prog/render_cache_test-501032eb/render_cache_test.c (804846 bytes)
+built build/render_cache_test
+render_cache PASS: exact legacy geometry, animation, topology/edit/visibility invalidation; uploads=30 releases=30 peak_live_meshes=2 wire_rebuilds=6
+parsed ok: 558 top-level declarations, 8 file(s)
+typechecked ok: 306 specialization(s), 28 struct/0 enum instance(s); optimized -O2: 100 inlined, 0 base case(s), 71 folded, 171 propagated, 0 tail loop(s), 0 reassociated
+bce: elided 41/41 index and 0/1 slice checks
+wrote /Users/lenstr/.goose/build/prog/render_smoke-7e337e8d/render_smoke.c (458996 bytes)
+built build/render_smoke
+render_smoke PASS frames=3 triangles=3344 calls=5
+src/scene.goose:264: warning: redundant `as f32`: a u32 converts to f32 implicitly here
+src/scene.goose:296: warning: redundant `as f32`: an i64 converts to f32 implicitly here
+parsed ok: 2070 top-level declarations, 26 file(s)
+typechecked ok: 1283 specialization(s), 96 struct/0 enum instance(s); optimized -O2: 1387 inlined, 0 base case(s), 342 folded, 1427 propagated, 0 tail loop(s), 0 reassociated
+bce: elided 751/1124 index and 35/45 slice checks
+wrote /Users/lenstr/.goose/build/prog/frontier-1982e6ca/frontier.c (3282594 bytes)
+built build/frontier_qa
+FLIGHT INPUT PLAYTEST PASS {
+  "passed": true,
+  "frames": 196,
+  "camera_distance_m": 373.91876,
+  "camera_horizontal_m": 264.40067,
+  "altitude_gain_m": 264.40033,
+  "maximum_altitude_m": 399.07544,
+  "home_horizontal_m": 80.0,
+  "player_unchanged": true,
+  "generated_before": 169,
+  "generated_at_takeoff": 177,
+  "generated_after_travel": 537,
+  "generated_final": 748,
+  "chunk_slots_peak": 169,
+  "chunk_slots_limit": 289,
+  "pending_jobs_peak": 4,
+  "f10_alias_checked": true,
+  "actions": "G, boosted forward and ascent, Home, G return, F10 enter, F10 return"
+}
+
+FRONTIER rendered 196 frames; 124 entities; 169 chunks; triangles=509837 screenshot=flight.png
+INPUT PLAYTEST PASS {"passed":true,"frames":332,"mined":3,"entity_slots":1125,"chunks_generated":190,"actions":"walk,mine,build menu,place,save,walk,load,spawn1000,destroy1000,stream,load"}
+
+FRONTIER rendered 332 frames; 125 entities; 40 chunks; triangles=213385 screenshot=input.png
+{
+  "synchronous_gpu_completion": true,
+  "resolution": [1920,1080],
+  "frames": 5,
+  "average_fps": 798.5944808612911,
+  "frame_ms_p50": 1.1700000613927841,
+  "frame_ms_p95": 1.4320001937448978,
+  "frame_ms_p99": 1.4320001937448978,
+  "simulation_ms_p95": 0.002,
+  "render_cpu_ms_p95": 0.40800031274557114,
+  "mesh_cpu_ms_p95": 0.001000240445137024,
+  "ui_cpu_ms_p95": 0.1500002108514309,
+  "gpu_completion_wait_ms_p95": 0.8169999346137047,
+  "entity_slots": 156,
+  "active_entities": 156,
+  "chunk_slots": 169,
+  "generated_chunks": 169,
+  "generation_cpu_total_ms": 2.638999999999995,
+  "queue_calls_total_ms": 0.03600000000000002,
+  "quality_radius": 6,
+  "horizon_meshes": 4,
+  "horizon_triangles": 131662,
+  "submitted_triangles": 526056,
+  "draw_calls": 349,
+  "dynamic_gpu_capacity_bytes": 3597840,
+  "showcase_load": 32,
+  "developer_panel_mode": 0,
+  "shadows": true
+}
+
+FRONTIER rendered 16 frames; 156 entities; 169 chunks; triangles=526056 screenshot=load.png
+{
+  "synchronous_gpu_completion": true,
+  "resolution": [1920,1080],
+  "frames": 5,
+  "average_fps": 104.7252003472953,
+  "frame_ms_p50": 9.39599983394146,
+  "frame_ms_p95": 10.387000162154436,
+  "frame_ms_p99": 10.387000162154436,
+  "simulation_ms_p95": 0.431,
+  "render_cpu_ms_p95": 7.229999639093876,
+  "mesh_cpu_ms_p95": 0.001000240445137024,
+  "ui_cpu_ms_p95": 0.1650000922381878,
+  "gpu_completion_wait_ms_p95": 2.4640001356601715,
+  "entity_slots": 2124,
+  "active_entities": 2124,
+  "chunk_slots": 169,
+  "generated_chunks": 169,
+  "generation_cpu_total_ms": 2.5579999999999927,
+  "queue_calls_total_ms": 0.044000000000000025,
+  "quality_radius": 6,
+  "horizon_meshes": 4,
+  "horizon_triangles": 131662,
+  "submitted_triangles": 1259090,
+  "draw_calls": 349,
+  "dynamic_gpu_capacity_bytes": 90734160,
+  "showcase_load": 2000,
+  "developer_panel_mode": 0,
+  "shadows": true
+}
+
+FRONTIER rendered 16 frames; 2124 entities; 169 chunks; triangles=1259090 screenshot=load.png

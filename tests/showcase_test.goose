@@ -172,13 +172,13 @@ fn main() {
     assert(ecs::take(player_store, sim::STONE, 1));
     sim::packets.alloc_index(sim::Packet {
         alive: true, source: player_store, dest: removed_source,
-        kind: sim::STONE, count: 1, t: 0.4
+        kind: sim::STONE, count: 1, t: 0.4,
     });
     assert(ecs::add(removed_source, sim::STONE, 2));
     assert(ecs::take(removed_source, sim::STONE, 1));
     sim::packets.alloc_index(sim::Packet {
         alive: true, source: removed_source, dest: player_store,
-        kind: sim::STONE, count: 1, t: 0.4
+        kind: sim::STONE, count: 1, t: 0.4,
     });
     let before_cleanup = balance();
     showcase::set_load(32);

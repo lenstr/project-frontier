@@ -60,7 +60,7 @@ fn terrain_properties() {
     let fungal_weights = world::climate_weights(fungal_climate);
     print(
         "framing climates: amber=", amber_climate, " weights=", amber_weights,
-        " fungal=", fungal_climate, " weights=", fungal_weights
+        " fungal=", fungal_climate, " weights=", fungal_weights,
     );
     assert(world::biome(amber_x, amber_z) == 1);
     assert(world::biome(fungal_x, fungal_z) == 2);
@@ -122,7 +122,7 @@ fn terrain_properties() {
         "framing relief: arid_samples=", arid_relief,
         " range=", arid_low, "..", arid_high,
         " fungal_samples=", fungal_relief,
-        " range=", fungal_low, "..", fungal_high
+        " range=", fungal_low, "..", fungal_high,
     );
     assert(arid_relief > 0 && fungal_relief > 0);
     assert(world::ridge_amplitude(0.0, 0.0) == 10.0);
@@ -189,7 +189,7 @@ fn terrain_properties() {
     print(
         "terrain properties: PASS; min_height=", low,
         " max_height=", high,
-        " meadow_open_mask_percent=", open_samples * 100.0 / meadow_samples
+        " meadow_open_mask_percent=", open_samples * 100.0 / meadow_samples,
     );
 }
 
@@ -301,6 +301,6 @@ fn main() {
         " edits=", world::edits.len, " max_pending=", world::max_pending,
         " generation_ms_total=", world::generation_total_ms,
         " queue_call_ms=", world::transfer_ms, " blocking_drain_ms=", world::wait_ms,
-        " elapsed_ms=", (clock() - start) * 1000.0, " checksum=", checksum
+        " elapsed_ms=", (clock() - start) * 1000.0, " checksum=", checksum,
     );
 }

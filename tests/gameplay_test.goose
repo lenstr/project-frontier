@@ -98,7 +98,7 @@ fn main() {
     print(
         "progression: PASS; automatic craft count=", sim::crafted,
         " paths=", nav::path_calls, " failed_paths=", nav::path_failed,
-        " route_ms=", nav::path_ms, " game_seconds=", sim::elapsed
+        " route_ms=", nav::path_ms, " game_seconds=", sim::elapsed,
     );
 
     // Verify transport by autonomous navigation without any logistics rails.
@@ -165,6 +165,6 @@ fn main() {
     sim::shutdown();
     print(
         "gameplay: PASS; packet conservation, component brownouts, 1000-object reuse; elapsed_ms=",
-        (clock() - started) * 1000.0
+        (clock() - started) * 1000.0,
     );
 }

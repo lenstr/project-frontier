@@ -102,7 +102,7 @@ fn capture_packets() -> sim::Packet[>..] {
             // transport tick delivers or refunds it, including after a load.
             out.push(sim::Packet {
                 alive: true, source: target_or_null(p.source), dest: target_or_null(p.dest),
-                kind: p.kind, count: p.count, t: p.t
+                kind: p.kind, count: p.count, t: p.t,
             });
         }
     }
@@ -345,7 +345,7 @@ fn load(path: const u8[:]) -> bool {
         return fail("Save missing or too large");
     }
     last_bytes = bytes.len;
-    var envelope, ok = from_bytes < Envelope[>..] > (bytes);
+    var envelope, ok = from_bytes<Envelope[>..]>(bytes);
     if !ok || envelope.len != 1 {
         return fail("Malformed save envelope");
     }
@@ -356,7 +356,7 @@ fn load(path: const u8[:]) -> bool {
         if env.checksum != checksum(env.payload) {
             return fail("Save checksum mismatch");
         }
-        var images, valid = from_bytes < GameImage[>..] > (env.payload);
+        var images, valid = from_bytes<GameImage[>..]>(env.payload);
         if !valid || images.len != 1 {
             return fail("Malformed world snapshot");
         }

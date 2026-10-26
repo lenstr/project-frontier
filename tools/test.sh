@@ -18,7 +18,8 @@ case "$mode" in
     exit 2
     ;;
 esac
-for name in entities world gameplay persistence telemetry showcase free_flight; do
+"$compiler" format --check frontier.goose src tests
+for name in entities world gameplay persistence telemetry showcase free_flight memory; do
   "$compiler" build "tests/${name}_test.goose" -o "build/${name}_test" --debug
   "build/${name}_test"
 done

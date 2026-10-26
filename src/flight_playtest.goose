@@ -89,7 +89,7 @@ fn finish() {
         ",\n  \"chunk_slots_limit\": ", world::MAX_CHUNKS,
         ",\n  \"pending_jobs_peak\": ", pending_peak,
         ",\n  \"f10_alias_checked\": true,\n",
-        "  \"actions\": \"G, boosted forward and ascent, Home, G return, F10 enter, F10 return\"\n}\n"
+        "  \"actions\": \"G, boosted forward and ascent, Home, G return, F10 enter, F10 return\"\n}\n",
     );
     assert(write_file("artifacts/flight-test.json", result));
     print("FLIGHT INPUT PLAYTEST PASS ", result);

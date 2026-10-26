@@ -87,7 +87,7 @@ var next_particle: i64 = 0;
 
 fn frustum(
     out: ft::Vertex[>..]&, p: float3, bottom_radius: f32, top_radius: f32,
-    height: f32, color: float4, sides: i64
+    height: f32, color: float4, sides: i64,
 ) {
     let b = p - float3 { 0.0, height * 0.5, 0.0 };
     let t = p + float3 { 0.0, height * 0.5, 0.0 };
@@ -134,12 +134,12 @@ fn tilted_box(out: ft::Vertex[>..]&, center: float3, size: float3, color: float4
         let pitched_pos = float3 {
             p.x,
             p.y * cos(pitch) - p.z * sin(pitch),
-            p.y * sin(pitch) + p.z * cos(pitch)
+            p.y * sin(pitch) + p.z * cos(pitch),
         };
         let pitched_normal = float3 {
             n.x,
             n.y * cos(pitch) - n.z * sin(pitch),
-            n.y * sin(pitch) + n.z * cos(pitch)
+            n.y * sin(pitch) + n.z * cos(pitch),
         };
         let pos = render::turn(pitched_pos, yaw);
         let norm = render::turn(pitched_normal, yaw);
@@ -157,7 +157,7 @@ fn ring(out: ft::Vertex[>..]&, p: float3, radius: f32, color: float4, thickness:
         let b: f32 = (i + 1) * TAU / 20.0;
         render::beam(
             out, p + float3 { cos(a) * radius, 0.0, sin(a) * radius },
-            p + float3 { cos(b) * radius, 0.0, sin(b) * radius }, thickness, color
+            p + float3 { cos(b) * radius, 0.0, sin(b) * radius }, thickness, color,
         );
     }
 }
@@ -222,7 +222,7 @@ fn grove_plant(out: ft::Vertex[>..]&, p: float3, biome: i64, size: f32, variant:
             frustum(
                 out, p + float3 { 0.0, (layer + 0.5) * size, 0.0 },
                 (0.85 - layer * 0.12) * size, (0.68 - layer * 0.12) * size,
-                size, color, 6
+                size, color, 6,
             );
         }
         return;
@@ -231,15 +231,15 @@ fn grove_plant(out: ft::Vertex[>..]&, p: float3, biome: i64, size: f32, variant:
     if biome == 2 {
         render::cylinder(
             out, p + float3 { 0.0, height * 0.5, 0.0 }, 0.23 * size, height,
-            ft::rgb(0.929, 0.890, 0.961), 6
+            ft::rgb(0.929, 0.890, 0.961), 6,
         );
         frustum(
             out, p + float3 { 0.0, height, 0.0 }, 1.9 * size, 1.4 * size,
-            0.2 * size, float4 { 1.0, 0.62, 0.847, 1.4 }, 8
+            0.2 * size, float4 { 1.0, 0.62, 0.847, 1.4 }, 8,
         );
         frustum(
             out, p + float3 { 0.0, height + 0.5 * size, 0.0 },
-            2.0 * size, 0.2 * size, size, ft::rgb(0.788, 0.651, 0.941), 8
+            2.0 * size, 0.2 * size, size, ft::rgb(0.788, 0.651, 0.941), 8,
         );
         return;
     }
@@ -261,7 +261,7 @@ fn grove_plant(out: ft::Vertex[>..]&, p: float3, biome: i64, size: f32, variant:
     } else {
         render::octahedron(
             out, p + float3 { 0.0, height * 0.84, 0.0 },
-            float3 { 2.6 * size, 3.0 * size, 2.6 * size }, foliage, variant as f32
+            float3 { 2.6 * size, 3.0 * size, 2.6 * size }, foliage, variant as f32,
         );
     }
 }
@@ -293,7 +293,7 @@ fn decorate(out: ft::Vertex[>..]&, slot: i64) {
             if member > 0 && member % 7 == 0 {
                 render::octahedron(
                     out, p + float3 { 0.0, 0.5 * scale, 0.0 },
-                    float3 { 1.7 * scale, scale, 1.4 * scale }, ft::rgb(0.337, 0.376, 0.478), member as f32
+                    float3 { 1.7 * scale, scale, 1.4 * scale }, ft::rgb(0.337, 0.376, 0.478), member as f32,
                 );
             } else {
                 grove_plant(out, p, biome, scale, h);
@@ -465,7 +465,7 @@ fn district_lit(p: float3) -> bool {
 
 fn window_band(
     out: ft::Vertex[>..]&, p: float3, yaw: f32,
-    width: f32, depth: f32, height: f32, color: float4
+    width: f32, depth: f32, height: f32, color: float4,
 ) {
     let corners: float2[4] = [
         float2 { -width * 0.5, -depth * 0.5 },
@@ -556,7 +556,7 @@ fn ore_deposit(out: ft::Vertex[>..]&, kind: i64, p: float3, yaw: f32, id: i64) {
             p + float3 { cos(a) * 0.6, 0.6 * scale, sin(a) * 0.6 },
             float3 { 0.62 * scale, 1.8 * scale, 0.65 * scale },
             color,
-            a
+            a,
         );
     }
 }
@@ -603,7 +603,7 @@ fn smelter(out: ft::Vertex[>..]&, p: float3, yaw: f32, progress: f32, powered: b
                 chimney + float3 { sin(age * 4.0 + i) * 0.3, 1.1 + age * 1.8, age * 0.4 },
                 ft::splat(0.18 + age * 0.55),
                 float4 { 0.70 + age * 0.1, 0.70 + age * 0.1, 0.77 + age * 0.05, 1.0 },
-                i + seconds * 0.3
+                i + seconds * 0.3,
             );
         }
     }
@@ -622,7 +622,7 @@ fn solar(out: ft::Vertex[>..]&, p: float3, powered: bool, seconds: f32) {
             let tilted = float3 {
                 local.x,
                 local.y * cos(pitch) - local.z * sin(pitch),
-                local.y * sin(pitch) + local.z * cos(pitch)
+                local.y * sin(pitch) + local.z * cos(pitch),
             };
             let rotated = render::turn(tilted, panel_yaw);
             let cell_color = ft::rgb(0.141, 0.212, 0.431);
@@ -701,7 +701,7 @@ fn depot(out: ft::Vertex[>..]&, p: float3, yaw: f32) {
 
 fn machine(
     out: ft::Vertex[>..]&, kind: i64, p: float3, yaw: f32, progress: f32, powered: bool, seconds: f32,
-    id: i64
+    id: i64,
 ) {
     if kind == 1 {
         lander(out, p, seconds);
@@ -1043,7 +1043,7 @@ fn burst(p: float3, color: float4) {
         let velocity = float3 {
             ((h & 255) / 127.5 - 1.0) * 2.0,
             1.5 + ((h >> 8) & 255) / 100.0,
-            (((h >> 16) & 255) / 127.5 - 1.0) * 2.0
+            (((h >> 16) & 255) / 127.5 - 1.0) * 2.0,
         };
         particles[next_particle] = Particle { p, velocity, color, life, life };
         next_particle = (next_particle + 1) % 256;
@@ -1077,7 +1077,7 @@ fn player_model(out: ft::Vertex[>..]&, seconds: f32) {
 
 fn draw(
     eye: float3, target: float3, day: f32, seconds: f32, selected: ecs::Handle,
-    ghost_kind: i64, ghost_pos: float3, ghost_valid: bool, shadows: bool
+    ghost_kind: i64, ghost_pos: float3, ghost_valid: bool, shadows: bool,
 ) {
     var dynamic: ft::Vertex[>..] = [];
     sync_logistics();

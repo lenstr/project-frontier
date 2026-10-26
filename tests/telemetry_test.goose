@@ -80,7 +80,7 @@ fn test_counts_and_reuse() {
         dest: factory,
         kind: sim::ORE,
         count: 1,
-        t: 0.25
+        t: 0.25,
     });
     stats::refresh();
     assert(stats::counters.buildings == 4);
@@ -122,7 +122,7 @@ fn test_counts_and_reuse() {
         dest: factory,
         kind: sim::ORE,
         count: 1,
-        t: 0.25
+        t: 0.25,
     });
     assert(reused_packet == packet);
     stats::refresh();

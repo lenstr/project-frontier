@@ -842,7 +842,7 @@ fn transport(dt: f32) {
                 }
                 assert(ecs::take(source, resource, 1));
                 packets.alloc_index(Packet {
-                    alive: true, source: source, dest: target, kind: resource, count: 1, t: 0.0
+                    alive: true, source: source, dest: target, kind: resource, count: 1, t: 0.0,
                 });
                 e.state = (edge + 1) % e.links.len;
                 sent = true;

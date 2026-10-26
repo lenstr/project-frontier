@@ -57,6 +57,7 @@ fn click(bounds: ui::Rect) -> dev::Actions {
     result.destroy_objects = max(result.destroy_objects, down.destroy_objects);
     result.toggle_flight = result.toggle_flight || down.toggle_flight;
     result.reframe_flight = result.reframe_flight || down.reframe_flight;
+    result.trim_memory = result.trim_memory || down.trim_memory;
     return result;
 }
 
@@ -182,6 +183,22 @@ fn main() {
     test_map_commands();
     click(dev::tab_bounds[2]);
     assert(dev::tab == 2);
+    dev::requested_scroll = 600;
+    frame();
+    frame();
+    assert(dev::trim_bounds.y > dev::panel_bounds.y + 50.0);
+    assert(dev::trim_bounds.y < dev::panel_bounds.y + dev::panel_bounds.h - 45.0);
+    let trim_action = click(dev::trim_bounds);
+    assert(trim_action.trim_memory);
+    memory::request_trim();
+    memory::service_request();
+    assert(memory::last_ok && memory::requests == 1);
+    frame();
+    assert(!dev::actions.trim_memory);
+    assert(gfx::screenshot("build/goose-upgrade-memory-panel.png"));
+    dev::requested_scroll = 0;
+    frame();
+    frame();
     click(dev::tab_bounds[3]);
     assert(dev::tab == 3);
     assert(dev::settings.flight_speed == 48.0);

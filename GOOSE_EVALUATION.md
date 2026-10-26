@@ -19,7 +19,50 @@ establish production readiness for a large voxel game, a many-thousand-machine f
 long-lived commercial engine. Language/compiler diagnostics, profiling support and scaling
 algorithms need further work.
 
-## Reproducible environment
+## Toolchain upgrade: 2026-10-26
+
+The current project pin is upstream commit `a108677d300cb0e8bbb842c35a353abe67a20c6c`,
+reported as `v2026.3+git.a108677d300c`, runtime `fba599d313fe`. There is no newer official
+release at this point; this is a reproducible source snapshot, not a moving `master` dependency.
+`tools/goose-toolchain.env` records the source hash, and bootstrap builds the official native
+packages. The historical measurements below retain their original compiler identities.
+
+Adopted features:
+
+- The official formatter passes `--verify` over all 35 source/test files, then `--check` after
+  applying formatting. Intentional line breaks remain; the main changes are spaces and trailing
+  commas. The standard test runner now checks formatting.
+- VS Code workspace settings select the same compiler and format on save. A stdio LSP probe
+  verified `documentFormattingProvider`, returned the expected edits, and shut down cleanly.
+- `trim_memory()` runs on explicit/coalesced requests after temporary scene/UI scopes return.
+  The Goose panel provides a button and honest result/time counters. Large churn, load and
+  colony shrink request it automatically; normal frames do not.
+
+Measured on the development Mac, using a separate 64 MiB scratch test:
+
+| Case | RSS after the scratch scope ended | RSS after the request phase |
+|---|---:|---:|
+| Keep committed pages | 68,730,880 bytes | 68,730,880 bytes |
+| Call `trim_memory()` | 68,714,496 bytes | 1,622,016–5,799,936 bytes |
+
+These are externally sampled resident sizes of this small test process, not the game's GPU
+footprint. Sampling interval is 70 ms. Live entity/inventory values and pool lengths remain
+unchanged; a second 64 MiB allocation and readback pass after release. The API returns a bool,
+not a freed-byte count. This closes the earlier missing-API limitation for unused CPU pages;
+it does not reduce live reusable-pool capacity or replace native GPU cleanup.
+
+The complete graphical/input suite passes on the new compiler. A deterministic 180-frame
+1080p working-colony capture is byte-identical to a v2026.3 build of the previous committed
+sources. This is functional/image compatibility evidence, not a comparative performance claim.
+
+Evidence: [memory samples](artifacts/goose-upgrade-memory.json),
+[LSP protocol result](artifacts/goose-upgrade-lsp.json),
+[formatter verification](artifacts/goose-upgrade-format-verify.log),
+[complete test log](artifacts/goose-upgrade-tests-final.log),
+[image comparison](artifacts/goose-upgrade-compatibility.json), and
+[page-release panel](artifacts/goose-upgrade-memory-panel.png).
+
+## Original benchmark environment
 
 - Development platform: macOS 26.7.1, Apple Silicon arm64.
 - Test machine: Apple M5 Max, 18 CPU cores, 40 GPU cores, 128 GB unified memory.

@@ -20,6 +20,7 @@ packages provide the GPU/window/input interface, immediate-mode text/UI and PCM 
 | `src/hud.goose` | HUD, build cards, help/pause interface, debug counters |
 | `src/dev_panel.goose` | Interactive F1 inspector, settings/actions, charts and entity graph navigation |
 | `src/telemetry.goose` | Bounded frame history, measured CPU stages and sampled pool counters |
+| `src/memory.goose` | Coalesced main-thread page-release requests, explicit frame boundary and result counters |
 | `src/showcase.goose` | Finite-input 32–2,000 entity colony, ownership and resource-preserving resizing |
 | `src/free_flight.goose` | Detached camera motion and projected streaming focus, independent of player state |
 | `src/flight_playtest.goose` | Real injected-input survey-flight integration driver |
@@ -226,6 +227,17 @@ normal transport rules. Chunk/GPU caches regenerate from seed and edits.
 
 The schema is explicitly version 1. There is no migration between future schemas, and the
 checksum detects accidental damage rather than authenticating a save.
+
+## Reclaiming unused CPU pages
+
+The source-pinned toolchain includes `os::trim_memory()`. `memory::request_trim()` coalesces
+requests; `service_request()` executes once near the end of a frame after scene/UI scratch
+functions return. Its duration remains inside total frame time. World restoration, large
+developer churn, colony shrink and the Goose-tab button request it. It is not a per-frame
+automatic call. This API operates on the calling program/thread's data stacks only; it does
+not shrink reusable runs, clear their live storage, or reclaim native/GPU handles. Success
+means the OS requests succeeded, not that a measured byte count was freed. Existing native
+UI-buffer retirement remains in place independently of this feature.
 
 ## Diagnostics and scaling boundaries
 

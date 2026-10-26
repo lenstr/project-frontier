@@ -19,6 +19,7 @@ import src.horizon;
 import src.showcase;
 import src.free_flight;
 import src.flight_playtest;
+import src.memory;
 
 var yaw: f32 = 0.873;
 var pitch: f32 = 0.24;
@@ -114,7 +115,7 @@ fn camera(dt: f32) {
     var desired = camera_target + float3 {
         sin(yaw) * cos(p) * d,
         sin(p) * d,
-        cos(yaw) * cos(p) * d
+        cos(yaw) * cos(p) * d,
     };
     for i in 1..20 {
         let t: f32 = i / 20.0;
@@ -240,7 +241,7 @@ fn movement(dt: f32) {
     var direction = float3 {
         -sin(yaw) * forward + cos(yaw) * right,
         0.0,
-        -cos(yaw) * forward - sin(yaw) * right
+        -cos(yaw) * forward - sin(yaw) * right,
     };
     let len = sqrt(dot(direction, direction));
     if len > 0.01 {
@@ -283,7 +284,7 @@ fn aim() {
     let mx = if gfx::mouse_relative() { 0.0 } else { cursor.x / size.x * 2.0 - 1.0 };
     let my = if gfx::mouse_relative() { 0.0 } else { 1.0 - cursor.y / size.y * 2.0 };
     let ray = normalize(
-        forward + right * ft::splat(mx * factor * aspect) + up * ft::splat(my * factor)
+        forward + right * ft::splat(mx * factor * aspect) + up * ft::splat(my * factor),
     );
     var depth: f32 = if flight::enabled { 1600.0 } else { 80.0 };
     has_ground = false;
@@ -349,6 +350,7 @@ fn default_save() {
 
 fn load_game() {
     if save::load(save_path) {
+        memory::request_trim();
         flight::leave();
         showcase::forget();
         dev::settings.load = 0;
@@ -617,7 +619,7 @@ fn report() {
         ",\n  \"showcase_load\": ", showcase::load,
         ",\n  \"developer_panel_mode\": ", dev::mode,
         ",\n  \"shadows\": ", shadows,
-        "\n}\n"
+        "\n}\n",
     );
     print(result);
     write_file("artifacts/benchmark.json", result);
@@ -636,14 +638,14 @@ struct LaunchOptions {
 fn parse_options() -> LaunchOptions {
     let argv = args();
     var options = LaunchOptions {
-        help: false, resume: false, mute: false, headless: false, stress: 0, custom_save: false
+        help: false, resume: false, mute: false, headless: false, stress: 0, custom_save: false,
     };
     var i: i64 = 1;
     while i < argv.len {
         let a = argv[i];
         if a == "--help" || a == "-h" {
             print(
-                "Project Frontier / Goose v2026.3\n",
+                "Project Frontier / Goose v2026.3+git.a108677d300c\n",
                 "Usage: ./run.sh [--resume] [--save PATH] [--seed N] [--quality low|medium|high]\n",
                 "       ./run.sh --demo [--hero] [--victory] [--time 0..1]\n",
                 "       ./run.sh --showcase [--load 32..2000] [--devtools] [--dev-tab 0..4]\n",
@@ -658,7 +660,7 @@ fn parse_options() -> LaunchOptions {
                 "C refine Ferrite, V craft Circuits. F5 save, F9 load, Tab field guide, Esc pause.\n",
                 "F1 developer panel: full / compact / closed; F2/F3 +/-1000; F4 rapid stream.\n",
                 "F6 robot; F7 networks; F8 time. --wireframe and --position X Z are inspection tools.\n",
-                "F12 screenshot; +/- streaming quality; O shadows. --mute disables sound."
+                "F12 screenshot; +/- streaming quality; O shadows. --mute disables sound.",
             );
             options.help = true;
             return options;
@@ -819,7 +821,7 @@ fn run_stress(stress: i64) {
                 " chunk_slots=", world::chunks.len,
                 " inv=", ecs::inventories.len,
                 " queues=", ecs::queues.len,
-                " edges=", ecs::edges.len
+                " edges=", ecs::edges.len,
             );
         }
     }
@@ -828,12 +830,15 @@ fn run_stress(stress: i64) {
         " elapsed_ms=", (clock() - start) * 1000.0,
         " entity_slots=", ecs::entities.len,
         " chunk_slots=", world::chunks.len,
-        " generated=", world::generated
+        " generated=", world::generated,
     );
 }
 
 // Runs frames until the window closes, the player quits or an automated run ends.
 fn developer_actions() {
+    if dev::actions.trim_memory {
+        memory::request_trim();
+    }
     if dev::actions.toggle_flight {
         toggle_flight();
     }
@@ -874,10 +879,15 @@ fn developer_actions() {
         };
         sim::say(str("Churn: ", dev::decimal(elapsed_ms, 2), " ms; slots ", before, " -> ", ecs::entities.len));
         stats::refresh();
+        memory::request_trim();
     }
     let load_changed = showcase::enabled && dev::settings.load != showcase::load;
     if dev::actions.build_showcase || (load_changed && !gfx::mouse_down(gfx::MOUSE_LEFT)) {
+        let previous_load = showcase::load;
         showcase::set_load(dev::settings.load);
+        if showcase::load < previous_load {
+            memory::request_trim();
+        }
         scene::invalidate();
         sim::say(str("Live colony: ", showcase::load, " entities. Inputs and production queues are real."));
     }
@@ -1006,7 +1016,7 @@ fn run_frames() -> i64 {
         let render_started = clock();
         scene::draw(
             eye, camera_target, sim::day, sim::elapsed, selected, if flight::enabled { 0 } else { hud::chosen }, ground,
-            sim::can_build(hud::chosen), shadows
+            sim::can_build(hud::chosen), shadows,
         );
         sample.render_ms = (clock() - render_started) * 1000.0;
         let ui_started = clock();
@@ -1018,6 +1028,9 @@ fn run_frames() -> i64 {
             gfx::flush();
             sample.gpu_wait_ms = (clock() - wait_started) * 1000.0;
         }
+        // Geometry/UI scratch has returned by this point. Include the cost
+        // in total frame time; the panel attributes it to the remaining work.
+        memory::service_request();
         sample.frame_ms = (clock() - frame_started) * 1000.0;
         stats::record(sample);
         hud::render_ms = sample.render_ms;
@@ -1148,7 +1161,7 @@ fn main() {
         eye = camera_target + float3 {
             sin(yaw) * cos(pitch) * distance,
             sin(pitch) * distance,
-            cos(yaw) * cos(pitch) * distance
+            cos(yaw) * cos(pitch) * distance,
         };
     }
     scene::vegetation_center = eye;
@@ -1168,7 +1181,7 @@ fn main() {
         "FRONTIER rendered ", drawn, " frames; ",
         ecs::alive_count, " entities; ",
         world::loaded, " chunks; triangles=", render::triangles,
-        " screenshot=", if automated { screenshot_path } else { "F12" }
+        " screenshot=", if automated { screenshot_path } else { "F12" },
     );
     dev::shutdown();
     hud::shutdown();

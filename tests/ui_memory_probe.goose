@@ -21,7 +21,7 @@ fn draw_ui(c: ui::Context, mono: ui::Context, frame: i64, scale: f32) {
                 str("Project Frontier frame ", frame, " row ", i),
                 ui::font(c),
                 ui::Color { 0, 0, 0, 0 },
-                ui::Color { 242, 234, 216, 255 }
+                ui::Color { 242, 234, 216, 255 },
             );
         }
     }
@@ -96,7 +96,7 @@ fn main() {
         if frame % 250 == 0 {
             print(
                 "UI_PROBE frame=", frame, " textures=", ui::renderer_textures.len,
-                " vb=", ui::renderer.vertex_capacity, " ib=", ui::renderer.index_capacity
+                " vb=", ui::renderer.vertex_capacity, " ib=", ui::renderer.index_capacity,
             );
         }
     }

@@ -1,0 +1,20 @@
+{
+  "baseline_source_commit": "feab203",
+  "baseline_compiler": "v2026.3 (runtime 4d3da949e563)",
+  "updated_compiler": "v2026.3+git.a108677d300c (runtime fba599d313fe)",
+  "arguments": [
+    "--showcase",
+    "--offscreen",
+    "--frames",
+    "180",
+    "--time",
+    "0.375",
+    "--mute"
+  ],
+  "png_sha256": {
+    "old": "c72348603e5e87b2f8980ca25ddde84129be2840ada105d0daa7601bf0eb9e2e",
+    "new": "c72348603e5e87b2f8980ca25ddde84129be2840ada105d0daa7601bf0eb9e2e"
+  },
+  "byte_identical": true,
+  "scope": "Deterministic image compatibility; not a comparative performance measurement"
+}

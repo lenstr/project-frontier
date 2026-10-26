@@ -148,7 +148,7 @@ fn measure(requested: i64) -> Case {
         let elapsed_ms = (clock_ns() - start) / 1000000.0;
         samples.push(Sample { ms: [
             elapsed_ms, sim::deposit_ms, sim::power_ms,
-            sim::production_ms, sim::transport_ms, sim::robots_ms
+            sim::production_ms, sim::transport_ms, sim::robots_ms,
         ] });
         // These observations and conservation checks are outside tick timing.
         peak_packets = max(peak_packets, packets());

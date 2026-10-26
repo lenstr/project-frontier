@@ -95,7 +95,7 @@ fn edge_skirt(out: ft::Vertex[>..]&, a: float3, b: float3) {
 
 fn boundary(
     out: ft::Vertex[>..]&, center: float3, radius: f32,
-    step: f32, near_radius: f32, view_center: float3
+    step: f32, near_radius: f32, view_center: float3,
 ) {
     if radius <= 0.0 {
         return;
@@ -110,22 +110,22 @@ fn boundary(
         edge_skirt(
             out,
             surface(center.x + offset, front, view_center, near_radius),
-            surface(center.x + offset + step, front, view_center, near_radius)
+            surface(center.x + offset + step, front, view_center, near_radius),
         );
         edge_skirt(
             out,
             surface(center.x + offset + step, back, view_center, near_radius),
-            surface(center.x + offset, back, view_center, near_radius)
+            surface(center.x + offset, back, view_center, near_radius),
         );
         edge_skirt(
             out,
             surface(left, center.z + offset + step, view_center, near_radius),
-            surface(left, center.z + offset, view_center, near_radius)
+            surface(left, center.z + offset, view_center, near_radius),
         );
         edge_skirt(
             out,
             surface(right, center.z + offset, view_center, near_radius),
-            surface(right, center.z + offset + step, view_center, near_radius)
+            surface(right, center.z + offset + step, view_center, near_radius),
         );
     }
 }
@@ -157,7 +157,7 @@ fn cell(out: ft::Vertex[>..]&, x: f32, z: f32, step: f32, center: float3, near_r
 }
 
 fn build_ring(
-    ring: i64, center: float3, near_radius: f32, far_distance: f32
+    ring: i64, center: float3, near_radius: f32, far_distance: f32,
 ) -> ft::Vertex[>..] {
     assert(ring >= 0 && ring < RINGS);
     var out: ft::Vertex[>..] = [];

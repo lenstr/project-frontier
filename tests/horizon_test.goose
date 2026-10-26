@@ -151,6 +151,6 @@ fn main() {
         " uploads=", horizon::uploaded_meshes,
         " releases=", horizon::released_meshes,
         " generation_ms=", horizon::generation_total_ms,
-        " elapsed_ms=", (clock() - started) * 1000.0
+        " elapsed_ms=", (clock() - started) * 1000.0,
     );
 }
