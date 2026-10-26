@@ -1,0 +1,31 @@
+{
+  "synchronous_gpu_completion": true,
+  "resolution": [1920,1080],
+  "frames": 8989,
+  "average_fps": 364.77941009374103,
+  "frame_ms_p50": 2.3349998518824577,
+  "frame_ms_p95": 4.700999706983566,
+  "frame_ms_p99": 6.031000055372715,
+  "simulation_ms_p95": 0.178,
+  "render_cpu_ms_p95": 0.2060001716017723,
+  "mesh_cpu_ms_p95": 0.5210000090301037,
+  "ui_cpu_ms_p95": 0.14799972996115685,
+  "gpu_completion_wait_ms_p95": 3.4469999372959137,
+  "entity_slots": 636,
+  "active_entities": 636,
+  "chunk_slots": 169,
+  "generated_chunks": 1417,
+  "generation_cpu_total_ms": 27.268999999999693,
+  "queue_calls_total_ms": 1.4029999999999723,
+  "quality_radius": 6,
+  "horizon_meshes": 102,
+  "horizon_triangles": 2969332,
+  "submitted_triangles": 3476582,
+  "draw_calls": 445,
+  "dynamic_gpu_capacity_bytes": 378240,
+  "showcase_load": 512,
+  "developer_panel_mode": 0,
+  "shadows": true
+}
+
+FRONTIER rendered 9000 frames; 636 entities; 169 chunks; triangles=3476582 screenshot=streaming.png

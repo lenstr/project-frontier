@@ -50,6 +50,12 @@ var victory = false;
 var hero = false;
 var automated = false;
 var start_flight = false;
+var survey_camera = false;
+var survey_x: f32 = 0.0;
+var survey_z: f32 = 0.0;
+var survey_height: f32 = 45.0;
+var survey_pitch: f32 = 0.12;
+var survey_yaw: f32 = 2.64;
 var rapid_stream = false;
 var stream_timer: f32 = 0.0;
 var render_frames: i64 = 0;
@@ -653,6 +659,7 @@ fn parse_options() -> LaunchOptions {
                 "       ./run.sh --offscreen --frames N [--benchmark] [--screenshot PATH]\n",
                 "       Add --rapid-stream for repeatable automatic chunk travel.\n",
                 "       ./run.sh --stress N | --playtest | --flight-test\n",
+                "       ./run.sh --survey X Z HEIGHT PITCH YAW (angles in radians)\n",
                 "WASD walk, Shift sprint, Space jump, right-drag orbit, wheel zoom.\n",
                 "G/F10 free flight; WASD move, Q/E altitude, Shift boost, wheel speed, Home overview.\n",
                 "Hold left click mine/dig; Shift+click fills terrain. B builds; 1-8 blueprints, 9 tool.\n",
@@ -707,6 +714,23 @@ fn parse_options() -> LaunchOptions {
         }
         if a == "--wireframe" {
             dev::settings.show_wireframe = true;
+        }
+        if a == "--survey" && i + 5 < argv.len {
+            let x, x_ok = parse_flt(argv[i + 1]);
+            let z, z_ok = parse_flt(argv[i + 2]);
+            let height, height_ok = parse_flt(argv[i + 3]);
+            let angle, pitch_ok = parse_flt(argv[i + 4]);
+            let heading, yaw_ok = parse_flt(argv[i + 5]);
+            if x_ok && z_ok && height_ok && pitch_ok && yaw_ok {
+                survey_camera = true;
+                start_flight = true;
+                survey_x = x as f32;
+                survey_z = z as f32;
+                survey_height = clamp(height as f32, 2.0, 20000.0);
+                survey_pitch = clamp(angle as f32, -1.35, 1.45);
+                survey_yaw = heading as f32;
+            }
+            i += 5;
         }
         if a == "--position" && i + 2 < argv.len {
             let x, x_ok = parse_flt(argv[i + 1]);
@@ -835,7 +859,7 @@ fn run_stress(stress: i64) {
 }
 
 // Runs frames until the window closes, the player quits or an automated run ends.
-fn developer_actions() {
+fn developer_actions(dt: f32) {
     if dev::actions.trim_memory {
         memory::request_trim();
     }
@@ -901,8 +925,11 @@ fn developer_actions() {
     scene::vegetation = dev::settings.vegetation;
     scene::vegetation_center = eye;
     render::wireframe = dev::settings.show_wireframe;
-    render::fog_clear = dev::settings.fog_start;
-    render::visibility = dev::settings.fog_distance;
+    let fog_blend: f32 = 1.0 - exp(-dt * 3.0);
+    let target_clear = dev::settings.fog_start * (if flight::enabled { 250.0 / 140.0 } else { 1.0 });
+    let target_visibility = dev::settings.fog_distance * (if flight::enabled { 3500.0 / 1600.0 } else { 1.0 });
+    render::fog_clear += (target_clear - render::fog_clear) * fog_blend;
+    render::visibility += (target_visibility - render::visibility) * fog_blend;
     render::horizon_edge = if flight::enabled {
         flight::horizon_distance(world::height(eye.x, eye.z))
     } else {
@@ -984,7 +1011,7 @@ fn run_frames() -> i64 {
         } else {
             controls(dt);
         }
-        developer_actions();
+        developer_actions(dt);
         sample.input_ms = early_input_ms + (clock() - controls_started) * 1000.0;
         if hud::request_quit {
             quit = true;
@@ -1013,7 +1040,7 @@ fn run_frames() -> i64 {
         sample.stream_ms = (clock() - stream_started) * 1000.0;
         let mesh_started = clock();
         scene::sync(dev::settings.mesh_budget);
-        horizon::update(focus, radius * 32.0, render::horizon_edge, 1);
+        horizon::update(focus, radius * 32.0, render::horizon_edge, 1, scene::vegetation);
         sample.mesh_ms = (clock() - mesh_started) * 1000.0;
         hud::mesh_ms = sample.mesh_ms;
         render::stream_radius = radius * 32.0;
@@ -1153,6 +1180,13 @@ fn main() {
     }
     if start_flight && !playtest {
         reframe_flight();
+        if survey_camera {
+            flight::eye = float3 { survey_x, world::height(survey_x, survey_z) + survey_height, survey_z };
+            flight::pitch = survey_pitch;
+            flight::yaw = survey_yaw;
+            eye = flight::eye;
+            camera_target = flight::target();
+        }
     }
     let diameter = radius * 2 + 1;
     let preload_batches = (diameter * diameter + world::MAX_JOBS - 1) / world::MAX_JOBS + 2;
@@ -1176,7 +1210,7 @@ fn main() {
     if flight::enabled {
         render::horizon_edge = flight::horizon_distance(world::height(eye.x, eye.z));
     }
-    horizon::update(streaming_focus(), radius * 32.0, render::horizon_edge, 1);
+    horizon::update(streaming_focus(), radius * 32.0, render::horizon_edge, 1, scene::vegetation);
     horizon::drain();
     dev::settings.day_phase = sim::day;
     let drawn = run_frames();

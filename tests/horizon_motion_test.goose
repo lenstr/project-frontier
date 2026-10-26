@@ -53,7 +53,7 @@ fn main() {
         let frame_ms = (clock() - frame_started) * 1000.0;
         max_frame_ms = max(max_frame_ms, frame_ms);
         stats::record(stats::Frame { frame_ms: frame_ms, mesh_ms: update_ms, .. });
-        assert(horizon::live_meshes <= 12);
+        assert(horizon::live_meshes <= horizon::MAX_MESHES * 2);
         frames++;
         // Pace submissions so the isolated renderer cannot outrun worker time.
         // This artificial 4 ms pacing is outside the measured frame cost.

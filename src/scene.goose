@@ -9,6 +9,7 @@ import .world;
 import .entities;
 import .sim;
 import .horizon;
+import .vegetation;
 import .showcase;
 
 let INK = float4 { 0.106, 0.137, 0.251, 1.0 };
@@ -85,28 +86,6 @@ var logistics_cache_ms: f64 = 0.0;
 struct Particle { pos: float3, velocity: float3, color: float4, life: f32, initial: f32 }
 var particles: Particle[256];
 var next_particle: i64 = 0;
-
-fn frustum(
-    out: ft::Vertex[>..]&, p: float3, bottom_radius: f32, top_radius: f32,
-    height: f32, color: float4, sides: i64,
-) {
-    let b = p - float3 { 0.0, height * 0.5, 0.0 };
-    let t = p + float3 { 0.0, height * 0.5, 0.0 };
-    for i in max(sides, 3) {
-        let a: f32 = i * TAU / max(sides, 3);
-        let aa: f32 = (i + 1) * TAU / max(sides, 3);
-        let direction = float3 { cos(a), 0.0, sin(a) };
-        let next = float3 { cos(aa), 0.0, sin(aa) };
-        let ba = b + direction * ft::splat(bottom_radius);
-        let bb = b + next * ft::splat(bottom_radius);
-        let ta = t + direction * ft::splat(top_radius);
-        let tb = t + next * ft::splat(top_radius);
-        render::triangle(out, ba, ta, tb, color);
-        render::triangle(out, ba, tb, bb, color);
-        render::triangle(out, b, ba, bb, color);
-        render::triangle(out, t, tb, ta, color);
-    }
-}
 
 // Flat-faceted ellipsoid, useful for suits, robot hulls and fungal caps.
 fn egg(out: ft::Vertex[>..]&, center: float3, size: float3, color: float4) {
@@ -220,7 +199,7 @@ fn grove_plant(out: ft::Vertex[>..]&, p: float3, biome: i64, size: f32, variant:
             } else {
                 ft::rgb(0.788, 0.451, 0.239)
             };
-            frustum(
+            render::frustum(
                 out, p + float3 { 0.0, (layer + 0.5) * size, 0.0 },
                 (0.85 - layer * 0.12) * size, (0.68 - layer * 0.12) * size,
                 size, color, 6,
@@ -234,11 +213,11 @@ fn grove_plant(out: ft::Vertex[>..]&, p: float3, biome: i64, size: f32, variant:
             out, p + float3 { 0.0, height * 0.5, 0.0 }, 0.23 * size, height,
             ft::rgb(0.929, 0.890, 0.961), 6,
         );
-        frustum(
+        render::frustum(
             out, p + float3 { 0.0, height, 0.0 }, 1.9 * size, 1.4 * size,
             0.2 * size, float4 { 1.0, 0.62, 0.847, 1.4 }, 8,
         );
-        frustum(
+        render::frustum(
             out, p + float3 { 0.0, height + 0.5 * size, 0.0 },
             2.0 * size, 0.2 * size, size, ft::rgb(0.788, 0.651, 0.941), 8,
         );
@@ -257,8 +236,8 @@ fn grove_plant(out: ft::Vertex[>..]&, p: float3, biome: i64, size: f32, variant:
         render::cone(out, p + float3 { 0.0, height * 0.98, 0.0 }, 0.85 * size, 2.0 * size, foliage, 6);
         render::octahedron(out, p + float3 { 0.0, height * 1.22, 0.0 }, ft::splat(0.35 * size), IVORY, 0.0);
     } else if variant % 4 == 2 {
-        frustum(out, p + float3 { 0.0, height * 0.92, 0.0 }, 1.8 * size, 1.3 * size, 0.5 * size, foliage, 8);
-        frustum(out, p + float3 { 0.0, height * 1.04, 0.0 }, 1.25 * size, 0.5 * size, 0.45 * size, foliage, 8);
+        render::frustum(out, p + float3 { 0.0, height * 0.92, 0.0 }, 1.8 * size, 1.3 * size, 0.5 * size, foliage, 8);
+        render::frustum(out, p + float3 { 0.0, height * 1.04, 0.0 }, 1.25 * size, 0.5 * size, 0.45 * size, foliage, 8);
     } else {
         render::octahedron(
             out, p + float3 { 0.0, height * 0.84, 0.0 },
@@ -270,27 +249,25 @@ fn grove_plant(out: ft::Vertex[>..]&, p: float3, biome: i64, size: f32, variant:
 fn decorate(out: ft::Vertex[>..]&, slot: i64) {
     let chunk .= world::chunks[slot];
     for grove in 4 {
-        let anchor = world::hash(chunk.cx * 51 + grove, chunk.cz * 37 - grove * 5, world::seed + 909);
-        let ax: f32 = chunk.cx * 32.0 + 6.0 + (anchor & 65535) / 65535.0 * 20.0;
-        let az: f32 = chunk.cz * 32.0 + 6.0 + ((anchor >> 16) & 65535) / 65535.0 * 20.0;
+        let group = flora::grove(chunk.cx, chunk.cz, grove, vegetation);
+        let anchor = group.hash;
+        let ax = group.x;
+        let az = group.z;
         if world::grove_mask(ax, az) < 0.42 || !clear_for_grove(ax, az, false) {
             continue;
         }
         let biome = world::biome(ax, az);
         let members = max(3, ((6 + anchor % 11) * vegetation) as! i64);
         for member in members {
-            let h = world::hash(chunk.cx * 113 + grove * 101 + member, chunk.cz * 127 - member * 5, world::seed + 1819);
-            let x: f32 = ax + ((h & 65535) / 65535.0 - 0.5) * 15.0;
-            let z: f32 = az + (((h >> 16) & 65535) / 65535.0 - 0.5) * 15.0;
+            let plant = flora::member(chunk.cx, chunk.cz, grove, member, group);
+            let h = plant.hash;
+            let x = plant.x;
+            let z = plant.z;
             if !clear_for_grove(x, z, member == 0) {
                 continue;
             }
             let p = float3 { x, world::height(x, z), z };
-            let scale: f32 = if member == 0 {
-                2.2 + ((h >> 8) & 255) / 255.0 * 0.8
-            } else {
-                0.6 + ((h >> 8) & 255) / 255.0 * 0.8
-            };
+            let scale = plant.size;
             if member > 0 && member % 7 == 0 {
                 render::octahedron(
                     out, p + float3 { 0.0, 0.5 * scale, 0.0 },
@@ -406,7 +383,11 @@ fn sync(budget: i64) {
             continue;
         }
         var vertices = world::mesh(slot);
+        let terrain_end = vertices.len;
         decorate(vertices, slot);
+        for i in terrain_end..vertices.len {
+            vertices[i].color.w = -10.0 - vertices[i].color.w;
+        }
         cached[slot] = render::upload(vertices);
         uploaded_at[slot] = clock();
         revisions[slot] = world::chunks[slot].revision;
@@ -515,12 +496,12 @@ fn lander(out: ft::Vertex[>..]&, p: float3, seconds: f32) {
         let foot = p + float3 { cos(a) * 2.65, 0.24, sin(a) * 2.65 };
         render::cylinder(out, foot, 0.55, 0.24, NAVY, 8);
         render::beam(out, foot, p + float3 { cos(a) * 1.2, 1.8, sin(a) * 1.2 }, 0.17, NAVY);
-        frustum(out, p + float3 { cos(a) * 0.7, 1.05, sin(a) * 0.7 }, 0.48, 0.3, 0.7, NAVY, 8);
+        render::frustum(out, p + float3 { cos(a) * 0.7, 1.05, sin(a) * 0.7 }, 0.48, 0.3, 0.7, NAVY, 8);
         let nozzle = p + float3 { cos(a) * 0.7, 0.72, sin(a) * 0.7 };
         render::cylinder(out, nozzle, 0.33, 0.08, float4 { 0.85, 0.31, 0.16, 1.6 }, 8);
     }
-    frustum(out, p + float3 { 0.0, 2.1, 0.0 }, 1.8, 1.25, 2.2, IVORY, 8);
-    frustum(out, p + float3 { 0.0, 2.8, 0.0 }, 1.44, 1.3, 0.55, INK, 8);
+    render::frustum(out, p + float3 { 0.0, 2.1, 0.0 }, 1.8, 1.25, 2.2, IVORY, 8);
+    render::frustum(out, p + float3 { 0.0, 2.8, 0.0 }, 1.44, 1.3, 0.55, INK, 8);
     render::cylinder(out, p + float3 { 0.0, 3.1, 0.0 }, 1.32, 0.08, window_light, 8);
     render::cone(out, p + float3 { 0.0, 3.7, 0.0 }, 1.35, 1.3, IVORY, 8);
     render::cylinder(out, p + float3 { 0.0, 3.13, 0.0 }, 1.39, 0.16, ORANGE, 8);
@@ -650,7 +631,7 @@ fn solar(out: ft::Vertex[>..]&, p: float3, powered: bool, seconds: f32) {
 }
 
 fn relay(out: ft::Vertex[>..]&, p: float3, yaw: f32, powered: bool, seconds: f32) {
-    frustum(out, p + float3 { 0.0, 2.1, 0.0 }, 0.33, 0.12, 4.1, NAVY, 4);
+    render::frustum(out, p + float3 { 0.0, 2.1, 0.0 }, 0.33, 0.12, 4.1, NAVY, 4);
     render::chamfered_box(out, p + float3 { 0.0, 4.1, 0.0 }, float3 { 1.7, 0.18, 0.3 }, IVORY, yaw);
     status(out, p + float3 { 0.0, 4.45, 0.0 }, powered, true, seconds);
 }
@@ -673,14 +654,14 @@ fn beacon(out: ft::Vertex[>..]&, p: float3, progress: f32, powered: bool, second
     foundation(out, p, 2.0);
     for i in 4 {
         let radius: f32 = 1.1 - i * 0.2;
-        frustum(out, p + float3 { 0.0, 2.0 + i * 3.9, 0.0 }, radius, radius - 0.14, 3.9, IVORY, 6);
+        render::frustum(out, p + float3 { 0.0, 2.0 + i * 3.9, 0.0 }, radius, radius - 0.14, 3.9, IVORY, 6);
         render::cylinder(out, p + float3 { 0.0, 3.85 + i * 3.9, 0.0 }, radius + 0.02, 0.18, ORANGE, 6);
     }
     // A tilted open dish: a shallow faceted bowl with a contrasting interior.
     let dish = p + float3 { 0.0, 16.2, 0.0 };
     render::beam(out, p + float3 { 0.0, 15.4, 0.0 }, dish, 0.14, NAVY);
     egg(out, dish, float3 { 3.8, 0.65, 3.8 }, IVORY);
-    frustum(out, dish + float3 { 0.0, 0.28, 0.0 }, 1.55, 1.75, 0.15, NAVY, 12);
+    render::frustum(out, dish + float3 { 0.0, 0.28, 0.0 }, 1.55, 1.75, 0.15, NAVY, 12);
     render::beam(out, dish, dish + float3 { 0.0, 1.1, 0.0 }, 0.07, ORANGE);
     status(out, p + float3 { 0.0, 17.5, 0.0 }, powered, progress > 0.0, seconds);
     if sim::objective_done {
@@ -1177,18 +1158,8 @@ fn draw(
     var all_meshes: render::Mesh[>..] = [];
     for slot in cached.len {
         var detail = cached[slot];
-        if detached_view && slot < world::chunks.len && world::chunks[slot].active {
-            let chunk = world::chunks[slot];
-            let center = float3 { chunk.cx * 32.0 + 16.0, 0.0, chunk.cz * 32.0 + 16.0 };
-            let focus = visibility_center();
-            let distance = max(abs(center.x - focus.x), abs(center.z - focus.z));
-            let spatial = 1.0 - world::smooth(render::stream_radius * 0.55, render::stream_radius * 0.88, distance);
-            let arrival = clamp((clock() - uploaded_at[slot]) / 0.35, 0.0, 1.0) as f32;
-            let opacity = min(spatial, arrival);
-            if opacity <= 0.001 {
-                continue;
-            }
-            detail.dissolve = 1.0 - opacity;
+        if detached_view {
+            detail.plant_arrival = clamp((clock() - uploaded_at[slot]) / 0.35, 0.0, 1.0) as f32;
         }
         all_meshes.push(detail);
     }
@@ -1208,6 +1179,7 @@ fn draw(
         distant.dissolve = -horizon_fade;
         all_meshes.push(distant);
     }
+    render::detail_center = visibility_center();
     render::detached_shadows = detached_view;
     render::shadow_anchor = visibility_center();
     render::horizon_center = if horizon::ready { horizon::active_center } else { visibility_center() };

@@ -14,6 +14,7 @@ struct Mesh {
     receives_shadow: bool = true,
     // Zero is opaque, positive fades out, negative fades in with the same mask.
     dissolve: f32 = 0.0,
+    plant_arrival: f32 = 1.0,
 }
 
 struct TransitionUniform { params: float4 }
@@ -27,6 +28,7 @@ struct LightUniform {
     params: float4,
     distances: float4,
     terrain_center: float4,
+    detail_center: float4,
 }
 
 struct SkyUniform { forward: float4, right: float4, up: float4, sun: float4, params: float4 }
@@ -50,6 +52,29 @@ var horizon_edge: f32 = 2048.0;
 var detached_shadows = false;
 var shadow_anchor: float3;
 var horizon_center: float3;
+var detail_center: float3;
+
+fn frustum(
+    out: ft::Vertex[>..]&, p: float3, bottom_radius: f32, top_radius: f32,
+    height: f32, color: float4, sides: i64,
+) {
+    let b = p - float3 { 0.0, height * 0.5, 0.0 };
+    let t = p + float3 { 0.0, height * 0.5, 0.0 };
+    for i in max(sides, 3) {
+        let a: f32 = i * TAU / max(sides, 3);
+        let aa: f32 = (i + 1) * TAU / max(sides, 3);
+        let direction = float3 { cos(a), 0.0, sin(a) };
+        let next = float3 { cos(aa), 0.0, sin(aa) };
+        let ba = b + direction * ft::splat(bottom_radius);
+        let bb = b + next * ft::splat(bottom_radius);
+        let ta = t + direction * ft::splat(top_radius);
+        let tb = t + next * ft::splat(top_radius);
+        render::triangle(out, ba, ta, tb, color);
+        render::triangle(out, ba, tb, bb, color);
+        render::triangle(out, b, ba, bb, color);
+        render::triangle(out, t, tb, ta, color);
+    }
+}
 
 fn triangle(out: ft::Vertex[>..]&, a: float3, b: float3, c: float3, col: float4) {
     let n = cross(b - a, c - a);
@@ -280,6 +305,7 @@ fn init() {
                 vec4 params;
                 vec4 distances;
                 vec4 terrain_center;
+                vec4 detail_center;
             };
             layout(set = 3, binding = 1) uniform Transition {
                 vec4 transition;
@@ -318,6 +344,26 @@ fn init() {
                     discard;
                 }
 
+                bool near_plant = tint.a <= -10.0;
+                float material_alpha = near_plant ? -tint.a - 10.0 : abs(tint.a);
+                if (near_plant && detail_center.w > 0.0) {
+                    float d = max(abs(world.x - detail_center.x), abs(world.z - detail_center.z));
+                    float opacity = 1.0 - smoothstep(detail_center.w * 0.55, detail_center.w * 0.88, d);
+                    opacity = min(opacity, transition.z);
+                    if (noise < 1.0 - opacity) {
+                        discard;
+                    }
+                }
+                if (tint.a < 0.0 && !near_plant) {
+                    float d = max(abs(world.x - detail_center.x), abs(world.z - detail_center.z));
+                    float radius = abs(detail_center.w);
+                    float inner = radius * (detail_center.w > 0.0 ? 0.55 : 1.0);
+                    float outer = radius * (detail_center.w > 0.0 ? 0.88 : 1.12);
+                    float coarse = smoothstep(inner, outer, d);
+                    if (noise >= coarse) {
+                        discard;
+                    }
+                }
                 vec3 n = normalize(norm);
                 float daylight = params.x;
                 float visibility = shadow();
@@ -331,7 +377,7 @@ fn init() {
                 warm = mix(warm, vec3(1.0, 0.698, 0.478), params.w * 0.8);
                 vec3 direct_color = mix(vec3(0.231, 0.290, 0.416), warm, visibility);
                 vec3 lit = tint.rgb * (ambient + direct_color * direct * (0.32 + 0.56 * daylight));
-                lit += tint.rgb * max(tint.a - 1.0, 0.0) * 0.8;
+                lit += tint.rgb * max(material_alpha - 1.0, 0.0) * 0.8;
                 float edge = pow(1.0 - max(dot(n, normalize(eye.xyz - world)), 0.0), 3.0) * 0.06;
                 lit += fog.rgb * edge * 1.67;
                 float distance_to_eye = length(world - eye.xyz);
@@ -341,8 +387,12 @@ fn init() {
                 vec2 from_center = abs(world.xz - terrain_center.xz);
                 float terrain_edge_distance = max(from_center.x, from_center.y);
                 haze = max(haze, smoothstep(distances.z * 0.88, distances.z, terrain_edge_distance));
+                if (tint.a < 0.0 && !near_plant) {
+                    // Keep merged distant forests in the atmospheric depth layers.
+                    haze = max(haze, 0.60 * smoothstep(1500.0, 3500.0, distance_to_eye));
+                }
                 // Alpha >= 4 marks the objective's high-energy beacon material.
-                if (tint.a >= 4.0) {
+                if (material_alpha >= 4.0) {
                     haze = min(haze, 0.30);
                 }
                 vec3 ray = normalize(world - eye.xyz);
@@ -444,6 +494,7 @@ fn init() {
 fn draw_meshes(meshes: const Mesh[:], dynamic_count: i64, shadow_pass: bool) {
     var dissolve: f32 = 2.0;
     var receives_shadow = false;
+    var plant_arrival: f32 = -1.0;
     for m in meshes {
         if shadow_pass && !m.casts_shadow {
             continue;
@@ -451,11 +502,12 @@ fn draw_meshes(meshes: const Mesh[:], dynamic_count: i64, shadow_pass: bool) {
         if m.count <= 0 || m.vertices.id == 0 {
             continue;
         }
-        if !shadow_pass && (m.dissolve != dissolve || m.receives_shadow != receives_shadow) {
+        if !shadow_pass && (m.dissolve != dissolve || m.receives_shadow != receives_shadow || m.plant_arrival != plant_arrival) {
             dissolve = m.dissolve;
             receives_shadow = m.receives_shadow;
+            plant_arrival = m.plant_arrival;
             gfx::uniforms(gfx::FRAGMENT, 1, TransitionUniform {
-                float4 { dissolve, if receives_shadow { 1.0 } else { 0.0 }, 0.0, 0.0 },
+                float4 { dissolve, if receives_shadow { 1.0 } else { 0.0 }, plant_arrival, 0.0 },
             });
         }
         gfx::bind_vertex_buffer(m.vertices);
@@ -463,8 +515,8 @@ fn draw_meshes(meshes: const Mesh[:], dynamic_count: i64, shadow_pass: bool) {
         draw_calls++;
     }
     if dynamic_count > 0 {
-        if !shadow_pass && (dissolve != 0.0 || !receives_shadow) {
-            gfx::uniforms(gfx::FRAGMENT, 1, TransitionUniform { float4 { 0.0, 1.0, 0.0, 0.0 } });
+        if !shadow_pass && (dissolve != 0.0 || !receives_shadow || plant_arrival != 1.0) {
+            gfx::uniforms(gfx::FRAGMENT, 1, TransitionUniform { float4 { 0.0, 1.0, 1.0, 0.0 } });
         }
         gfx::bind_vertex_buffer(dynamic_buffer);
         gfx::draw(dynamic_count);
@@ -556,6 +608,7 @@ fn draw_scene(
         float4 { daylight, if shadows { 1.0 } else { 0.0 }, seconds, dusk },
         float4 { fog_clear, visibility, horizon_edge, 0.0 },
         float4 { horizon_center.x, horizon_center.y, horizon_center.z, 0.0 },
+        float4 { detail_center.x, detail_center.y, detail_center.z, stream_radius * (if detached_shadows { 1.0 } else { -1.0 }) },
     });
     gfx::bind_texture(gfx::FRAGMENT, 0, shadow_map, shadow_compare);
     draw_meshes(meshes, dynamic.len, false);

@@ -11,6 +11,7 @@ packages provide the GPU/window/input interface, immediate-mode text/UI and PCM 
 | `frontier.goose` | Entry point, CLI, camera, player collision, aiming, controls, frame loop, benchmarks |
 | `src/entities.goose` | Reusable entity slots, generational handles, independent inventories/queues/edges |
 | `src/world.goose` | Seeded heightfield, sparse edits, bounded streaming cache, isolated generation workers |
+| `src/vegetation.goose` | Shared deterministic grove placement and visual-only distant plants/canopies |
 | `src/horizon.goose` | Four cached terrain LOD rings, staged replacement and explicit GPU retirement |
 | `src/navigation.goose` | Bounded A* and route following over edited terrain and building obstacles |
 | `src/sim.goose` | Deposits, mining, construction, recipes, power, resource transport, robots, objective |
@@ -98,28 +99,46 @@ builds ridges, amber terraces, fungal basins and a dry salt channel. Hashed 384 
 spires or craters. Flat landing/district masks override those features; a 40 m wide approach
 along the initial camera forward axis connects them, with a smooth 16 m shoulder.
 
-`horizon` provides six non-shadow-casting terrain rings with 8/16/32/64/128/256 m base cells.
-Walking uses the inner four rings; survey flight extends coverage to 12,288 m, increasing in
-1,024 m steps with altitude up to 16,384 m. Only cells up to 64 m refine landmarks, bounding
-the cost of the outer landscape. The camera far clip covers the square terrain corners and altitude.
-The center snaps to 256 m cells, keeping every ring aligned to the world grid. An unchanged request does no work. A dedicated Goose worker
-receives one flat ring job at a time and returns inline vertex data through a bounded typed queue.
-Ordinary frames only poll results and upload at most one ring; they never wait for generation.
-Initial loading and shutdown explicitly drain pending work. The complete set transitions over 350 ms with complementary screen-door masks; the previous
-set occupies staging storage until the fade ends, so the twelve-mesh bound still holds.
-The outer 35% of each ring morphs to its parent grid, including skirt tops. A world-anchored
-depth bias replaces the moving radial depression; flat construction pads keep only 15 cm of
-bias. Detached detail chunks fade at their outer boundary and for 350 ms after arrival.
-Center changes during a build are coalesced: the current set finishes, then follows the newest
-center. This prevents fast flight from cancelling every partial set. Seed/detail/distance
-changes reject incompatible results by generation ticket. Queue-copy and GPU-upload times
-are measured separately from worker CPU time in the developer panel. Fog fades by distance to the active ring center and
-its square boundary, rather than assuming the camera is centered inside the rings.
-Active and staging sets own at most twelve GPU meshes. The innermost ring includes a buried
-central fallback so pending detail chunks cannot leave a hole. Skirts and a buried overlap hide LOD
-seams. Coarse fallback neither casts nor receives the local shadow map, preventing the detailed
-terrain sheet from casting a dark rectangle onto the buried mesh. Shadow coverage fades at
-map borders, and survey shadows use the grounded streaming focus. Distant terrain omits fine player edits; detailed chunks preserve and display them.
+`horizon` provides six non-shadow-casting terrain rings with 4/8/16/32/64/128 m base cells.
+Walking uses the inner rings; survey flight extends coverage to 12,288 m, increasing in
+1,024 m steps with altitude up to 16,384 m. Only cells up to 64 m refine landmarks. Shared grid
+points are evaluated once per ring rather than four times per quad. The camera far clip covers
+square terrain corners and altitude. The center snaps to world-aligned 256 m cells.
+
+A dedicated Goose worker receives flat ring jobs. The result includes visual-only foliage:
+individual reduced meshes to 896 m, merged grove canopies to 2,560 m, and larger merged
+silhouettes to 6,144 m. Near and distant individuals share grove/member hashes and coordinates.
+The farther tiers represent grove footprints, not every individual plant. The factory district
+and approach retain their clearings. These visuals create no gameplay entities, inventories,
+colliders or simulation chunks. Vegetation density changes invalidate the visual request.
+
+The worker sends inline batches of at most 90,000 vertices (3.6 MB), waiting for a typed
+acknowledgment before the next batch. Ordinary frames poll and upload at most one batch into
+its own immutable GPU buffer. This avoids both large queue copies and the official backend's
+full-buffer zero fill when allocating a large partially populated buffer. Each set is bounded
+by 512 buffers, with at most active plus staging sets resident; observed counts are reported
+separately from the six logical rings. Loading and shutdown explicitly drain pending work.
+Offsets and generation tickets validate message ordering and cancel obsolete settings/seed
+results. Center requests coalesce until the current set finishes.
+
+Complete sets transition over 350 ms with complementary screen-door masks. Old handles move
+into staging storage until the fade ends; each native handle is released exactly once. The
+outer 35% of each ring morphs to its parent grid, including skirt tops. A stationary depth
+bias replaces the moving radial depression; flat pads keep only 15 cm of bias. Detailed
+terrain stays opaque. Only its decoration fades at the outer boundary and for 350 ms after
+arrival, avoiding the former stippled ground rectangles.
+
+Vertex alpha is an explicit material tag: ordinary materials use positive alpha, distant
+foliage uses negative alpha, and near decoration uses `-10-alpha`. The shader restores the
+original material strength before lighting and masks near/far vegetation with complementary
+coverage. No tag changes gameplay state. Flight atmosphere blends toward a 250 m clear region
+and 3,500 m visibility scale over about one second; walking retains 140/1,600 m defaults. The
+settings sliders scale these values, and World shows effective visibility. Merged distant
+foliage receives an additional haze floor between 1.5 and 3.5 km to preserve depth.
+
+Coarse fallback neither casts nor receives local shadows. Shadow-map borders fade, and survey
+shadows use grounded focus. Distant terrain omits fine edits; detailed chunks preserve them.
+Queue-copy, worker CPU and GPU-upload times are separate measurements in the developer panel.
 
 `world::height` samples the procedural field plus edits independently of residency and follows
 the same diagonal split as the mesh. Collision and navigation therefore work before a chunk's

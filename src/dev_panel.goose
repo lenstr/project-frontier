@@ -611,6 +611,10 @@ fn world_page() {
     heading("GPU RESOURCES / APPLICATION COUNTERS");
     metric("Terrain GPU meshes", count_text(scene::mesh_count), CYAN);
     metric("Horizon meshes / triangles", str(count_text(horizon::mesh_count), " / ", count_text(horizon::triangles)), IVORY);
+    metric("Distant plants / canopies", count_text(horizon::foliage_objects), CYAN);
+    metric("Distant foliage triangles", count_text(horizon::foliage_triangles), IVORY);
+    metric("Foliage draw distance", "6 144 m", CYAN);
+    metric("Effective atmospheric visibility", str(count_text(round(render::visibility) as i64), " m"), IVORY);
     metric("Horizon rings pending", count_text(horizon::pending_rings), ORANGE);
     milliseconds("Horizon worker CPU / latest", horizon::generation_ms);
     milliseconds("Horizon queue calls / cumulative", horizon::transfer_ms);

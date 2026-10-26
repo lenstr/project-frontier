@@ -1,0 +1,31 @@
+{
+  "synchronous_gpu_completion": true,
+  "resolution": [1920,1080],
+  "frames": 1789,
+  "average_fps": 417.0012510755277,
+  "frame_ms_p50": 2.2459998726844788,
+  "frame_ms_p95": 3.4440001472830772,
+  "frame_ms_p99": 3.7670000456273556,
+  "simulation_ms_p95": 0.222,
+  "render_cpu_ms_p95": 0.18899980932474136,
+  "mesh_cpu_ms_p95": 0.001000240445137024,
+  "ui_cpu_ms_p95": 0.1509999856352806,
+  "gpu_completion_wait_ms_p95": 2.9080002568662167,
+  "entity_slots": 636,
+  "active_entities": 636,
+  "chunk_slots": 169,
+  "generated_chunks": 169,
+  "generation_cpu_total_ms": 4.356000000000002,
+  "queue_calls_total_ms": 0.1320000000000001,
+  "quality_radius": 6,
+  "horizon_meshes": 105,
+  "horizon_triangles": 3034648,
+  "submitted_triangles": 3546411,
+  "draw_calls": 448,
+  "dynamic_gpu_capacity_bytes": 378240,
+  "showcase_load": 512,
+  "developer_panel_mode": 0,
+  "shadows": true
+}
+
+FRONTIER rendered 1800 frames; 636 entities; 169 chunks; triangles=3546411 screenshot=low-flight.png

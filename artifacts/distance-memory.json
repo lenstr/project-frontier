@@ -1,0 +1,247 @@
+{
+  "exit_code": 0,
+  "binary_sha256": "df07f1f33d4772ba12a30856eb310b3bf45b42112e5fcbefe085f4f2f680ecc2",
+  "arguments": [
+    "--showcase",
+    "--survey",
+    "465",
+    "-854",
+    "45",
+    "0.12",
+    "2.64",
+    "--offscreen",
+    "--frames",
+    "1800",
+    "--benchmark",
+    "--mute",
+    "--time",
+    "0.42",
+    "--screenshot",
+    "low-flight.png"
+  ],
+  "sampling_seconds": 0.1,
+  "peak_rss_bytes": 235782144,
+  "samples": [
+    {
+      "seconds": 0.004,
+      "rss_bytes": 32768
+    },
+    {
+      "seconds": 0.111,
+      "rss_bytes": 32768
+    },
+    {
+      "seconds": 0.221,
+      "rss_bytes": 32768
+    },
+    {
+      "seconds": 0.334,
+      "rss_bytes": 32768
+    },
+    {
+      "seconds": 0.446,
+      "rss_bytes": 32768
+    },
+    {
+      "seconds": 0.553,
+      "rss_bytes": 13500416
+    },
+    {
+      "seconds": 0.657,
+      "rss_bytes": 72564736
+    },
+    {
+      "seconds": 0.765,
+      "rss_bytes": 152207360
+    },
+    {
+      "seconds": 0.87,
+      "rss_bytes": 188121088
+    },
+    {
+      "seconds": 0.978,
+      "rss_bytes": 193134592
+    },
+    {
+      "seconds": 1.086,
+      "rss_bytes": 193134592
+    },
+    {
+      "seconds": 1.19,
+      "rss_bytes": 193134592
+    },
+    {
+      "seconds": 1.297,
+      "rss_bytes": 196313088
+    },
+    {
+      "seconds": 1.404,
+      "rss_bytes": 221003776
+    },
+    {
+      "seconds": 1.513,
+      "rss_bytes": 218628096
+    },
+    {
+      "seconds": 1.621,
+      "rss_bytes": 218628096
+    },
+    {
+      "seconds": 1.729,
+      "rss_bytes": 218628096
+    },
+    {
+      "seconds": 1.835,
+      "rss_bytes": 218660864
+    },
+    {
+      "seconds": 1.943,
+      "rss_bytes": 218677248
+    },
+    {
+      "seconds": 2.051,
+      "rss_bytes": 218677248
+    },
+    {
+      "seconds": 2.156,
+      "rss_bytes": 218677248
+    },
+    {
+      "seconds": 2.262,
+      "rss_bytes": 218677248
+    },
+    {
+      "seconds": 2.37,
+      "rss_bytes": 218677248
+    },
+    {
+      "seconds": 2.478,
+      "rss_bytes": 218677248
+    },
+    {
+      "seconds": 2.587,
+      "rss_bytes": 218677248
+    },
+    {
+      "seconds": 2.691,
+      "rss_bytes": 218693632
+    },
+    {
+      "seconds": 2.795,
+      "rss_bytes": 218677248
+    },
+    {
+      "seconds": 2.903,
+      "rss_bytes": 218677248
+    },
+    {
+      "seconds": 3.012,
+      "rss_bytes": 218677248
+    },
+    {
+      "seconds": 3.115,
+      "rss_bytes": 218677248
+    },
+    {
+      "seconds": 3.224,
+      "rss_bytes": 218677248
+    },
+    {
+      "seconds": 3.332,
+      "rss_bytes": 218677248
+    },
+    {
+      "seconds": 3.436,
+      "rss_bytes": 218677248
+    },
+    {
+      "seconds": 3.542,
+      "rss_bytes": 218677248
+    },
+    {
+      "seconds": 3.651,
+      "rss_bytes": 218873856
+    },
+    {
+      "seconds": 3.759,
+      "rss_bytes": 218677248
+    },
+    {
+      "seconds": 3.867,
+      "rss_bytes": 218677248
+    },
+    {
+      "seconds": 3.976,
+      "rss_bytes": 218677248
+    },
+    {
+      "seconds": 4.084,
+      "rss_bytes": 218677248
+    },
+    {
+      "seconds": 4.192,
+      "rss_bytes": 218677248
+    },
+    {
+      "seconds": 4.3,
+      "rss_bytes": 218677248
+    },
+    {
+      "seconds": 4.409,
+      "rss_bytes": 218677248
+    },
+    {
+      "seconds": 4.517,
+      "rss_bytes": 218677248
+    },
+    {
+      "seconds": 4.625,
+      "rss_bytes": 218677248
+    },
+    {
+      "seconds": 4.734,
+      "rss_bytes": 218677248
+    },
+    {
+      "seconds": 4.842,
+      "rss_bytes": 218677248
+    },
+    {
+      "seconds": 4.95,
+      "rss_bytes": 218677248
+    },
+    {
+      "seconds": 5.059,
+      "rss_bytes": 218677248
+    },
+    {
+      "seconds": 5.164,
+      "rss_bytes": 218677248
+    },
+    {
+      "seconds": 5.273,
+      "rss_bytes": 218677248
+    },
+    {
+      "seconds": 5.382,
+      "rss_bytes": 218808320
+    },
+    {
+      "seconds": 5.49,
+      "rss_bytes": 218808320
+    },
+    {
+      "seconds": 5.596,
+      "rss_bytes": 218808320
+    },
+    {
+      "seconds": 5.704,
+      "rss_bytes": 218808320
+    },
+    {
+      "seconds": 5.812,
+      "rss_bytes": 235782144
+    }
+  ],
+  "scope": "OS RSS of one full game run including initial loading; GPU unified-memory accounting is not measured separately"
+}

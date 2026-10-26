@@ -19,6 +19,72 @@ establish production readiness for a large voxel game, a many-thousand-machine f
 long-lived commercial engine. Language/compiler diagnostics, profiling support and scaling
 algorithms need further work.
 
+## Distant vegetation and bounded uploads
+
+The next player screenshot exposed a separate limitation: correctly centered detailed chunks
+still showed vegetation only within roughly 200 m, leaving the distant terrain bare. The
+simulation window was accidentally also the visual draw-distance limit. This was a project
+architecture limitation, not evidence of exhausted hardware or a Goose language restriction.
+
+The current renderer adds visual-only vegetation through the isolated horizon worker. Near
+and reduced individuals share exact grove/member positions; farther canopies represent grove
+footprints. Reduced individuals extend to 896 m, merged canopies to 2,560 m, and coarse grove
+silhouettes to 6,144 m. Terrain cells are now 4/8/16/32/64/128 m across the six logical rings.
+No extra gameplay entities or simulation chunks are allocated for distant vegetation. The
+walking/flight fog defaults are 140/1,600 m and 250/3,500 m respectively, with a smooth mode
+transition and an additional distant-canopy haze floor. Near ground stays opaque; only its
+plant vertices participate in the near/far decoration dissolve.
+
+The initial whole-ring transfer produced a measured 23.56 ms main-thread LOD update and a
+32.09 ms frame in the moving-camera test. Splitting an oversized GPU buffer into offset writes
+was considered but not adopted: inspection of the official backend showed allocation zeroes
+all unwritten bytes, so initial creation would still perform a whole-buffer transfer. The
+implemented pipeline creates independent immutable buffers of at most 90,000 vertices per
+batch (3.6 MB). The worker waits for a typed acknowledgment; the main loop polls and uploads
+one batch per frame. Sequence offsets and generation tickets validate/cancel transfers.
+
+Native handles live in two independently growing Goose arrays, one per active/staging set.
+A complete replacement copies only small handle records, retaining the old set for its fade;
+retirement explicitly releases each buffer. Each array is capped at 512 buffers. The final
+horizon regression observed at most 163 live buffers and balanced 479 uploads with 479 releases.
+This replaces the earlier twelve-buffer layout; it does not imply 163 simulation entities.
+Grid-height scratch is scoped to each job, and shared vertices are sampled once per ring.
+
+Goose-specific friction: `copy` does not accept a slice. A small scoped growable array populated
+with `append` constructs each inline message payload. No native allocator or project C/C++ was
+added. The experiment demonstrates a workable bounded message/collection design, while also
+showing that bulk copying and native upload size must be engineered explicitly.
+
+Measured on the development M5 Max, release build, 1920×1080 and synchronous GPU completion:
+
+| Run | Samples | p50 / p95 / p99 | Geometry |
+|---|---:|---:|---:|
+| Low flight, camera (465, −854), 45 m above ground, colony load 512 | 1,789 | 2.25 / 3.44 / 3.77 ms | 3.55 million submitted triangles |
+| Full game, 9,000 frames with automatic 128 m chunk travel | 8,989 | 2.33 / 4.70 / 6.03 ms | 3.48 million at the end |
+
+The static run averaged 417 FPS; the streaming run averaged 365 FPS and generated 1,417 chunks,
+retaining 169 chunk slots and 636 active entities. These are measurements of these bounded
+scenarios, not a guarantee for arbitrary worlds or hardware. External sampling during the
+static run observed a peak RSS of 235,782,144 bytes (235.8 MB); GPU unified-memory accounting
+was not measured separately and must not be inferred from RSS.
+
+The isolated moving-horizon test completed three sets over 2,775 frames: last-240 p95/p99
+5.20/7.80 ms, maximum main-thread LOD update 1.58 ms. Its maximum whole frame was still 35.56 ms;
+this change does not establish that every frame meets 60 FPS. That test excludes the HUD and
+simulation and has 4 ms artificial pacing outside measured frame costs.
+
+The full gameplay/graphics suite and the new vegetation regression pass. Art consultation
+accepted the low-flight still as resolving the nearby cutoff and empty middle distance. It
+flagged far contrast, repeated silhouettes and dither speckle as polish issues; the haze floor
+addresses contrast. Motion has automated timing/resource coverage, but no separate visual
+30-second normal/boost acceptance recording was produced.
+
+Evidence: [full tests](artifacts/distance-tests.log),
+[low-flight timing](artifacts/distance-measured.log),
+[streaming timing](artifacts/distance-streaming.log),
+[RSS samples and binary identity](artifacts/distance-memory.json), and
+[actual low-flight capture](artifacts/distance-low-flight.png).
+
 ## Survey camera residency follow-up
 
 Further player testing showed detailed terrain only around the center-screen ray, with coarse
@@ -36,7 +102,7 @@ finite detailed region is placed; it does not make the entire 12–16 km horizon
 Evidence: [complete tests](artifacts/flight-footprint-tests.log) and
 [camera-ground residency input test](artifacts/flight-footprint-input.log).
 
-## Survey-flight LOD correction: 2026-10-26
+## Earlier survey-flight LOD correction: 2026-10-26 (`31f95a7`)
 
 Player testing exposed a visible landscape cutoff and two waves of detail changes in flight.
 The previous 1.5–2.4 km horizon and 3.2 km camera clip were insufficient from altitude. Ring

@@ -9,15 +9,24 @@ import gfx;
 import .types;
 import .world;
 import .render;
+import .vegetation;
 
 let RINGS = 6;
 let SNAP: f32 = 256.0;
 let MIN_DISTANCE: f32 = 1536.0;
 let MAX_DISTANCE: f32 = 16384.0;
 
-var cache: render::Mesh[6];
-var staging: render::Mesh[6];
+let MAX_MESHES = 512;
+var cache: render::Mesh[>..<] = [];
+var staging: render::Mesh[>..<] = [];
 var triangles: i64 = 0;
+var foliage_triangles: i64 = 0;
+var foliage_objects: i64 = 0;
+var pending_foliage: i64 = 0;
+var pending_objects: i64 = 0;
+var ring_offset: i64 = 0;
+var max_batch_vertices: i64 = 0;
+var requested_density: f32 = 1.0;
 var mesh_count: i64 = 0;
 var generation_ms: f64 = 0.0;
 var generation_total_ms: f64 = 0.0;
@@ -27,6 +36,7 @@ var building = false;
 var fading = false;
 var fade_started: f64 = 0.0;
 let FADE_SECONDS: f64 = 0.35;
+let UPLOAD_VERTICES: i64 = 90000;
 var pending_rings: i64 = 0;
 var generated_rings: i64 = 0;
 var rebuilds: i64 = 0;
@@ -45,6 +55,7 @@ struct MeshJob {
     near_radius: f32,
     far_distance: f32,
     seed: u32,
+    density: f32,
     ticket: i64,
     ring: i64,
     stop: bool,
@@ -54,8 +65,14 @@ struct MeshResult {
     ticket: i64,
     ring: i64,
     generate_ns: i64,
+    foliage_vertices: i64,
+    objects: i64,
+    offset: i64,
+    total: i64,
     vertices: ft::Vertex[],
 }
+
+struct MeshAck { cancelled: bool }
 
 var worker_id: i64 = 0;
 var worker_running = false;
@@ -66,7 +83,7 @@ var upload_ms: f64 = 0.0;
 var stale_results: i64 = 0;
 
 fn ring_step(ring: i64) -> f32 {
-    let steps: f32[6] = [8.0, 16.0, 32.0, 64.0, 128.0, 256.0];
+    let steps: f32[6] = [4.0, 8.0, 16.0, 32.0, 64.0, 128.0];
     steps[ring]
 }
 
@@ -111,8 +128,7 @@ fn ring_outer(ring: i64, far_distance: f32) -> f32 {
 
 fn fallback_height(x: f32, z: f32) -> f32 {
     // Flat construction pads need only a small depth bias; buildings stay seated.
-    let burial = 0.15 + 3.85 * world::natural_weight(x, z);
-    world::base_height(x, z) - burial
+    world::visual_height(x, z)
 }
 
 fn surface(x: f32, z: f32, center: float3, near_radius: f32) -> float3 {
@@ -255,6 +271,22 @@ fn build_ring(
     }
     let step = ring_step(ring);
     let cells = (outer * 2.0 / step) as i64;
+    // Adjacent quads share vertices. Evaluate procedural height/morph once per
+    // grid point rather than repeating the same expensive samples four times.
+    let row = cells + 1;
+    var points: float3[>..] = [];
+    for zi in row {
+        let z: f32 = center.z - outer + zi * step;
+        for xi in row {
+            let x: f32 = center.x - outer + xi * step;
+            let distance = max(abs(x - center.x), abs(z - center.z));
+            if distance < inner - step {
+                points.push(float3_0);
+            } else {
+                points.push(lod_surface(x, z, center, near_radius, step, outer));
+            }
+        }
+    }
     for zi in cells {
         let z: f32 = -outer + zi * step;
         for xi in cells {
@@ -276,7 +308,13 @@ fn build_ring(
                 let tile_center = float3 { wx + step * 0.5, 0.0, wz + step * 0.5 };
                 boundary(out, tile_center, step * 0.5, 8.0, near_radius, center, step, outer);
             } else {
-                cell(out, wx, wz, step, center, near_radius, step, outer);
+                let index = zi * row + xi;
+                let a = points[index];
+                let b = points[index + row];
+                let c = points[index + row + 1];
+                let d = points[index + 1];
+                face(out, a, b, c);
+                face(out, a, c, d);
             }
         }
     }
@@ -298,21 +336,36 @@ fn retire(mesh: render::Mesh&) {
 }
 
 fn clear_staging() {
-    for i in RINGS {
+    for i in staging.len {
         retire(staging[i]);
     }
+    staging.clear();
     pending_rings = 0;
+    pending_foliage = 0;
+    pending_objects = 0;
+    ring_offset = 0;
 }
 
 fn refresh_stats() {
     triangles = 0;
-    mesh_count = 0;
+    mesh_count = cache.len;
     for mesh in cache {
-        if mesh.vertices.id != 0 {
-            triangles += mesh.count / 3;
-            mesh_count++;
-        }
+        triangles += mesh.count / 3;
     }
+}
+
+fn copy_batch(vertices: const ft::Vertex[:], start: i64, end: i64) -> ft::Vertex[>..] {
+    var batch: ft::Vertex[>..] = [];
+    batch.append(vertices[start..end]);
+    batch
+}
+
+fn build_visual_ring(job: MeshJob) -> ft::Vertex[>..] {
+    var vertices = build_ring(job.ring, job.center, job.near_radius, job.far_distance);
+    flora::append(vertices, job.center,
+        ring_inner(job.ring, job.near_radius, job.far_distance),
+        ring_outer(job.ring, job.far_distance), job.density);
+    vertices
 }
 
 thread_fn generate_worker() {
@@ -323,14 +376,29 @@ thread_fn generate_worker() {
         }
         world::seed = job.seed;
         let started = clock_ns();
-        var result = MeshResult {
-            ticket: job.ticket,
-            ring: job.ring,
-            generate_ns: 0,
-            vertices: build_ring(job.ring, job.center, job.near_radius, job.far_distance),
-        };
-        result.generate_ns = clock_ns() - started;
-        assert(qput(result));
+        var vertices = build_visual_ring(job);
+        let generation_ns = clock_ns() - started;
+        var offset: i64 = 0;
+        loop {
+            let end = min(offset + UPLOAD_VERTICES, vertices.len);
+            assert(qput(MeshResult {
+                ticket: job.ticket,
+                ring: job.ring,
+                generate_ns: if offset == 0 { generation_ns } else { 0 },
+                foliage_vertices: flora::last_vertices,
+                objects: flora::last_objects,
+                offset: offset,
+                total: vertices.len,
+                vertices: copy_batch(vertices, offset, end),
+            }));
+            // One bounded payload may be in flight. Waiting happens only here,
+            // never in the render loop, and cancellation stops the old stream.
+            let ack = qget<MeshAck>();
+            if ack.cancelled || end == vertices.len {
+                break;
+            }
+            offset = end;
+        }
     }
 }
 
@@ -349,42 +417,64 @@ fn init() {
     uploaded_meshes = 0;
     released_meshes = 0;
     peak_meshes = 0;
+    max_batch_vertices = 0;
     qlimit<MeshJob>(2);
     qlimit<MeshResult>(2);
+    qlimit<MeshAck>(2);
     worker_id = thread_spawn(generate_worker);
     worker_running = true;
 }
 
 fn accept(result: MeshResult&) {
-    worker_busy = false;
     generation_ms = result.generate_ns / 1000000.0;
     generation_total_ms += generation_ms;
     if result.ticket != ticket {
+        worker_busy = false;
         stale_results++;
+        assert(qput(MeshAck { cancelled: true }));
         return;
     }
-    assert(result.ring == pending_rings);
+    assert(result.ring == pending_rings && result.offset == ring_offset);
+    assert(result.vertices.len <= UPLOAD_VERTICES);
+    max_batch_vertices = max(max_batch_vertices, result.vertices.len);
+    ring_offset += result.vertices.len;
     let started = clock();
-    staging[result.ring] = render::upload(result.vertices);
-    upload_ms += (clock() - started) * 1000.0;
-    staging[result.ring].casts_shadow = false;
-    staging[result.ring].receives_shadow = false;
-    if staging[result.ring].vertices.id != 0 {
+    if result.offset == 0 {
+        pending_foliage += result.foliage_vertices;
+        pending_objects += result.objects;
+    }
+    if result.vertices.len > 0 {
+        assert(staging.len < MAX_MESHES);
+        var mesh = render::upload(result.vertices);
+        mesh.casts_shadow = false;
+        mesh.receives_shadow = false;
+        staging.push(mesh);
         live_meshes++;
         uploaded_meshes++;
         peak_meshes = max(peak_meshes, live_meshes);
     }
+    upload_ms += (clock() - started) * 1000.0;
+    assert(qput(MeshAck { cancelled: false }));
+    if result.offset + result.vertices.len < result.total {
+        return;
+    }
+    worker_busy = false;
+    assert(ring_offset == result.total);
+    ring_offset = 0;
     pending_rings++;
     generated_rings++;
-    assert(live_meshes <= RINGS * 2);
+    assert(live_meshes <= MAX_MESHES * 2);
     if pending_rings == RINGS {
         fading = ready;
         fade_started = clock();
-        for i in RINGS {
-            let previous = cache[i];
-            cache[i] = staging[i];
-            staging[i] = previous;
-        }
+        var previous: render::Mesh[>..] = [];
+        previous.append(cache);
+        cache.clear();
+        cache.append(staging);
+        staging.clear();
+        staging.append(previous);
+        foliage_triangles = pending_foliage / 3;
+        foliage_objects = pending_objects;
         pending_rings = 0;
         active_center = float3 { requested_x * SNAP, 0.0, requested_z * SNAP };
         ready = true;
@@ -394,7 +484,7 @@ fn accept(result: MeshResult&) {
     }
 }
 
-fn update(center: float3, near_radius: f32, far_distance: f32, budget: i64) {
+fn update(center: float3, near_radius: f32, far_distance: f32, budget: i64, density: f32 = 1.0) {
     assert(worker_running);
     if fading {
         if clock() - fade_started < FADE_SECONDS {
@@ -407,7 +497,7 @@ fn update(center: float3, near_radius: f32, far_distance: f32, budget: i64) {
     let cz = floor(center.z / SNAP) as i64;
     let near = clamp(floor(near_radius / 8.0) * 8.0, 32.0, 256.0);
     let far = clamp(floor(far_distance / 64.0) * 64.0, MIN_DISTANCE, MAX_DISTANCE);
-    let settings_changed = requested_near != near || requested_far != far || requested_seed != world::seed;
+    let settings_changed = requested_near != near || requested_far != far || requested_seed != world::seed || requested_density != density;
     let moved = requested_x != cx || requested_z != cz;
     // Coalesce camera travel until the current complete set is ready. Only
     // incompatible settings invalidate an outstanding result by its ticket.
@@ -419,6 +509,7 @@ fn update(center: float3, near_radius: f32, far_distance: f32, budget: i64) {
         requested_near = near;
         requested_far = far;
         requested_seed = world::seed;
+        requested_density = density;
         building = true;
     }
     generation_ms = 0.0;
@@ -441,6 +532,7 @@ fn update(center: float3, near_radius: f32, far_distance: f32, budget: i64) {
             near_radius: requested_near,
             far_distance: requested_far,
             seed: requested_seed,
+            density: requested_density,
             ticket: ticket,
             ring: pending_rings,
             stop: false,
@@ -458,7 +550,7 @@ fn drain() {
             accept(result);
         }
         if building {
-            update(float3 { requested_x * SNAP, 0.0, requested_z * SNAP }, requested_near, requested_far, 1);
+            update(float3 { requested_x * SNAP, 0.0, requested_z * SNAP }, requested_near, requested_far, 1, requested_density);
         }
     }
     if fading {
@@ -487,9 +579,12 @@ fn shutdown() {
         worker_running = false;
     }
     clear_staging();
-    for i in RINGS {
+    for i in cache.len {
         retire(cache[i]);
     }
+    cache.clear();
+    foliage_triangles = 0;
+    foliage_objects = 0;
     ready = false;
     building = false;
     triangles = 0;

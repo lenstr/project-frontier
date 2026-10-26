@@ -278,6 +278,11 @@ fn sample(gx: i64, gz: i64) -> f32 {
     generated_height(gx * 2.0, gz * 2.0, seed) + delta_at(gx, gz)
 }
 
+// Shared visual-only depth bias for coarse terrain and its distant vegetation.
+fn visual_height(x: f32, z: f32) -> f32 {
+    base_height(x, z) - (0.15 + 3.85 * natural_weight(x, z))
+}
+
 fn height(x: f32, z: f32) -> f32 {
     let gx = floor(x / 2.0) as i64;
     let gz = floor(z / 2.0) as i64;

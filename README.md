@@ -41,6 +41,7 @@ through the official extension. Run the bootstrap before opening sources in a fr
 ./run.sh --quality high             # Radius 8, shadows on
 ./run.sh --showcase --devtools       # 512 real colony entities, interactive engine inspector
 ./run.sh --showcase --flight         # Fly above the whole industrial district
+./run.sh --survey 465 -854 45 0.12 2.64 # X Z, metres above ground, pitch/yaw in radians
 ./run.sh --showcase --load 2000      # Large finite-input factory workload
 ./run.sh --demo                     # The original small working colony
 ./run.sh --help
@@ -87,7 +88,10 @@ The public-API progression test completes this loop without resource grants.
 Survey flight starts about 130 m above the base, with the entire district in view. The suit
 stays in place and the colony keeps running. Detailed chunks and distant terrain follow the
 camera's view; flying does not teleport the player or edit the save. G returns to the suit.
-Flight terrain covers 12–16 km, with background mesh generation and gradual LOD transitions.
+Flight terrain covers 12–16 km. Visual-only trees and hoodoos continue as reduced individual
+meshes to about 900 m, grove canopies to 2.56 km, and silhouettes to 6.14 km. These do not expand
+the simulation radius. Background generation and small GPU uploads keep streaming separate
+from the frame loop.
 The HUD shows altitude, speed and controls; the developer panel also has flight buttons and
 a 10–300 m/s speed slider. Mouse wheel adjusts that speed, and Shift multiplies it by four.
 
@@ -172,7 +176,8 @@ The default detailed terrain window is 13×13 chunks (416 m across). Two isolate
 the detailed heightfield; cached LOD rings extend the landscape roughly 2 km on foot and 12–16 km in survey flight. Ridges,
 terraced mesas, fungal basins, salt channels, spires and craters share one climate function.
 The landing area and its approach to the factory district stay walkable. Fog begins at 140 m
-by default and has a 1,600 m visibility scale; both are editable live.
+on foot with a 1,600 m visibility scale. Flight blends to 250/3,500 m; the live fog sliders
+scale these values. The developer World's counters show distant foliage and effective visibility.
 
 This is a small colony game: terrain is a deformable heightfield with three biomes, rather than
 a volumetric cave system. Distant terrain regenerates deterministically; sparse player edits
