@@ -1,0 +1,454 @@
+# Goose evaluation: Project Frontier
+
+## Scope and verdict
+
+Project Frontier is a playable 3D exploration and automation game written in Goose. It includes
+streamed procedural terrain, terrain editing, mining, inventories, construction, power,
+processing, visible resource transport, autonomous local-pathfinding robots, a progression goal,
+save/load, procedural visuals/audio and deterministic stress tools.
+
+**Measured finding:** the implemented pools repeatedly reuse storage under arbitrary entity
+destruction, independent collection growth, chunk eviction and world restoration. The tests
+described below pass. A native UI/GPU resource-retirement problem was reproduced and worked
+around from Goose; the corrected full-HUD run also has bounded observed memory over 30,000
+frames. No project-defined native allocator or native simulation was necessary.
+
+**Engineering judgment:** Goose is viable for this size of game, particularly when lifetimes
+are organized as fixed records, reusable runs and scope-local scratch. This result does not
+establish production readiness for a large voxel game, a many-thousand-machine factory, or a
+long-lived commercial engine. Language/compiler diagnostics, profiling support and scaling
+algorithms need further work.
+
+## Reproducible environment
+
+- Development platform: macOS 26.7.1, Apple Silicon arm64.
+- Test machine: Apple M5 Max, 18 CPU cores, 40 GPU cores, 128 GB unified memory.
+- Compiler: official Goose `v2026.3` Apple Silicon release; `goose version` reports runtime
+  `4d3da949e563`.
+- Backend: Goose-generated C compiled AOT using the platform compiler; official `gfx` uses
+  SDL3's GPU API and Metal on this platform.
+- Bootstrap/build: `tools/bootstrap.sh` and `tools/build.sh`; downloaded toolchains and build
+  outputs are excluded from source control.
+- Source: about 3,000 production Goose lines including comments and embedded GLSL, plus tests.
+  The repository adds **zero C/C++ source lines**. Generated C and the pre-existing official
+  package/runtime implementation are separate from that count.
+
+The official [tutorial](https://aardappel.github.io/goose/docs/tutorial.html),
+[reference](https://aardappel.github.io/goose/docs/reference.html),
+[library documentation](https://aardappel.github.io/goose/docs/stdlib.html) and
+[samples](https://github.com/aardappel/goose/tree/master/samples) informed the design. The
+implementation uses the pinned distribution's actual APIs and examples, especially graphics
+sample 27, mini-Minecraft sample 30, thread sample 23, serialization sample 25 and reusable
+file-tree sample 26. Online master documentation can describe features absent from this release.
+
+## Recorded deterministic results
+
+The following values come from the post-optimization debug run in
+`artifacts/optimization-tests.log`. They are observations of these fixtures, not throughput
+guarantees. Elapsed times include only each program's timed test region and exclude compilation
+and process launch. The suite uses `--debug`, including source-level runtime checks; release
+graphical measurements are a separate workload.
+
+| Test | Workload and assertions | Observed result |
+|---|---|---|
+| `entities_test.goose` | 50 rounds of 1,000 entities; 12 independently growing inventory kinds per entity; varying queues; three outgoing links; interleaved deletion; stale handles | Pass; 50,000 spawns in 380.873 ms; pool plateaus: 1,000 entity slots, 12,064 inventory cells, 5,339 queue cells, 3,002 edge cells |
+| `world_test.goose` | Repeated teleports, negative coordinates, shared-border edits, abandoned jobs, maximum-radius streaming, restart | Pass; 2,745 generated chunks, 2,639 evictions; 81-slot high-water; 14 persistent edit vertices; eight jobs maximum; 117.062 ms total |
+| World worker timings | Same world fixture | 203.148 ms summed generation CPU; 0.770 ms main queue-call time; 107.686 ms blocking drain time |
+| `gameplay_test.goose` | Bootstrap mining, manual recipes, real construction costs, powered automatic production, robot routing, tower completion; independent brownout, rail-free robot delivery and packet-conservation checks | Pass; 137 crafted outputs; 202.208 simulated seconds; 314.693 ms elapsed |
+| Navigation in gameplay fixture | Bounded local A* requests made during the progression scenario | 140 attempts, zero failed; 271.327 ms summed path CPU |
+| `persistence_test.goose` | Full machine/robot/graph/queue/packet/edit/depletion state; churn allocator to 1,000 slots; corrupt saves; 50 reloads | Pass; 932-byte fixture; original handles and all entity/collection/packet pool high-water marks unchanged through repeated loads |
+
+Generation CPU is summed across two workers, so it may exceed wall time. `queue_call_ms` times
+main-thread `qput` and nonblocking result polls; it includes dispatch/runtime overhead and copying.
+It is **not** an isolated `memcpy` benchmark, and it excludes the worker's send-call timer.
+`blocking_drain_ms` includes waiting and is reported separately. Zero path failures describes
+the corrected deterministic gameplay fixture, not all possible player-built obstacle layouts.
+
+### Actual-input integration
+
+`artifacts/input-test.json` records a passing 332-frame test through the game's injected
+keyboard/mouse input path: walk, mine three units, open the construction menu, place a machine,
+save, move, load, spawn/destroy 1,000 objects, stream, and load again. It generated 172 chunks
+and reached 1,125 entity slots. This complements direct simulation tests; it exercises the
+player-facing controls and persistence wiring.
+
+### Final game frame benchmark
+
+`artifacts/benchmark.json` measures the actual game loop, complete scene, HUD and active
+simulation at **1,920×1,080**, default radius 3 (49 chunks), shadows enabled and 133 entities in
+the demo colony. It records 2,989 samples from 3,000 rendered frames after initial warmup.
+`synchronous_gpu_completion: true` confirms that benchmark mode waits for GPU completion every
+frame; normal play retains asynchronous pipelining.
+
+| Metric | Recorded value |
+|---|---:|
+| FPS from mean frame interval | 1,526.34 |
+| Frame p50 / p95 / p99 | 0.642 / 0.734 / 0.930 ms |
+| Simulation CPU p95 | 0.001 ms |
+| Scene and HUD render CPU p95 | 0.340 ms |
+| Mesh synchronization CPU p95 | 0.001 ms |
+
+The GPU wait is included in the next frame interval and excluded from the render CPU timer.
+These are full rendered offscreen frames, not GPU timestamp-query measurements, and they omit
+desktop composition/presentation. The colony remains in place, so this is not a streaming
+travel benchmark or the much larger production fixture below. The full process runs for 2.61
+seconds, including startup and screenshot/readback outside the frame samples.
+
+After the resource-retirement workaround below, this process records **96,518,144 bytes
+maximum resident size** and **515,589,512 bytes peak memory footprint**. The preserved
+`benchmark-before-fix.json`/`.log` contain the failed approach: 385.83 frames/s, **1,999,290,368
+bytes maximum resident size** and **106,185,789,712 bytes peak memory footprint** over the same
+3,000-frame workload. Those are distinct operating-system metrics; the very large pre-fix
+footprint is not presented as logical Goose pool storage.
+
+### Isolating and bounding full-HUD memory
+
+The discrepancy between the full HUD and no-HUD stress fixture prompted an independent
+UI-only reproducer, `tests/ui_memory_probe.goose`. Its artifact,
+`artifacts/ui-memory-probe-results.json`, preserves nine probe modes, commands and caveats:
+
+| Probe | Maximum resident bytes | Peak-footprint bytes |
+|---|---:|---:|
+| Keep official UI GPU buffers, 1,000 GPU-complete frames | 246,890,496 | 17,508,435,000 |
+| Keep official UI GPU buffers, 3,000 GPU-complete frames | 633,044,992 | 51,876,480,320 |
+| Retire only UI index buffer, 1,000 GPU-complete frames | 71,958,528 | 393,429,904 |
+| Retire index buffer, 3,000 pipelined frames | 72,810,496 | 405,095,336 |
+| Keep UI buffers, create/release unrelated 16-byte sentinel, 1,000 frames | 71,729,152 | 376,161,216 |
+
+**Measured:** UI font-texture count and GPU buffer capacities remain fixed even in the growing
+baseline. Generated C for `ui::render` restores its three temporary Goose stack tops on return;
+unchanged-scale font baking exits immediately and native UI commands/conversion buffers clear
+per frame. Retiring either UI vertex or index storage also removes the observed growth. Merely
+using exact-sized uploads or disabling graphics validation does not. The pipelined probe
+sleeps one millisecond per frame, so it is a memory check, not a throughput comparison with the
+unpaced synchronous probes.
+
+**Inference, not a proven internal defect:** releasing an unrelated tiny buffer works while
+retaining both UI buffers. This points toward native SDL/Metal GPU cleanup timing triggered by
+resource retirement, rather than proving that a UI index buffer, Goose stack, font atlas or
+general heap allocator is intrinsically leaking. The native implementation was not patched or
+fully diagnosed at the driver level.
+
+**Shipping workaround:** `hud::present` renders both UI contexts, releases
+`ui::renderer.index_buffer`, and resets its handle/capacity to zero. The next official UI render
+call recreates that small buffer; SDL defers destruction until pending draws finish. This costs
+one small GPU buffer allocation/retirement per frame, uses no custom allocator or C code, and
+depends on the pinned v2026.3 module's renderer fields. It must be reevaluated when upgrading.
+
+The corrected actual game then ran **30,000 full-HUD pipelined frames** at 1,920×1,080 in
+**9.66 seconds**. `artifacts/full-app-memory.json` records 89 external RSS samples and source/
+executable hashes. After warmup, sampled RSS is **80.4–95.2 MiB**, starting at 81.1 MiB and ending
+at 95.2 MiB during the final screenshot/readback; the preceding two samples are 81.5 and
+81.3 MiB. Maximum resident size is **101,646,336 bytes**; the distinct peak-footprint metric is
+**900,711,624 bytes**. This is much better than the unbounded-looking short baseline and shows
+bounded observations under actual pipelined HUD rendering. It remains a finite static-colony
+run, not a proof of a perfectly flat footprint or a multi-hour session.
+
+### Production simulation at scale
+
+`tests/network_stress.goose` uses 200 production cells: **2,155 active entities, 2,002
+structures, 400 production machines and 32 robots**. It measures 600 ticks after 60 warmup ticks,
+with finite starting resources and no rendering. Resource accounting includes committed
+recipes, packets and robot cargo. These are functioning production systems, rather than
+decorative stress entities.
+
+| Configuration and artifact | Mean tick | p95 | p99 | Maximum |
+|---|---:|---:|---:|---:|
+| Before optimization, debug (`network-stress-before.json`) | 78.018 ms | 127.010 ms | 193.628 ms | 314.638 ms |
+| After optimization, debug (`network-stress-debug.json`) | 6.525 ms | 36.615 ms | 74.189 ms | 146.301 ms |
+| After optimization, release (`network-stress.json`) | 0.613 ms | 4.425 ms | 9.510 ms | 18.861 ms |
+
+The same debug configuration improved mean tick time **11.96×**. The additional debug-to-release
+difference is a separate build-configuration effect; the combined ratio is not a source-only
+optimization result. Before optimization, pathfinding consumed 26,601 ms of roughly 46,811 ms
+summed tick CPU. Rasterizing obstacles once per search and caching exact power topology removed
+most repeated work. The measured static production fixture required zero topology rebuilds
+after warmup; separate assertions exercise invalidation.
+
+Both corrected builds produce **1,600 outputs**, reach **1,181 live packets**, and complete
+**1,088 A* routes with zero failures**. Finite resource equivalents remain exactly 20,836
+Ferrite, 13,206 Glacite and 24 regolith units. An additional 10,000 creations/destructions with
+real inventories and graph edges take 33.787 ms in release; pool high-water marks remain 3,155
+entity slots, 2,386 inventory cells and 2,018 edge cells. Maximum resident size is 2,654,208 bytes
+for the release test and 3,145,728 bytes for debug; the distinct peak-footprint counters are
+2,409,264 and 2,474,800 bytes. JSON artifacts record build flags, source hashes and executable
+hashes.
+
+**Limit:** this is CPU simulation timing. Release p99 is below 16.67 ms, but its maximum exceeds
+that budget, and debug p95 does not meet it. These results do not establish 60 rendered FPS for
+a colony with 2,002 structures.
+
+### GPU streaming, entity churn and memory trace
+
+`artifacts/gpu-stress-results.json` records a **71.17-second**, 1,920×1,080 offscreen Metal run
+with shadows. It renders 50,000 frames over 2,500 rounds, creates/destroys 2.5 million entities,
+and generates 62,500 chunks with 62,475 evictions. Peak live entities are 1,124; peak submitted
+geometry is 76,225 triangles. Every measured frame explicitly waits for GPU completion.
+
+After ten warmup rounds, the 49,800 frame samples average **1.036 ms**, with **p95 1.703 ms**
+and **p99 2.565 ms** (965.6 frames/s from the mean). CPU drawing averages 0.433 ms. Streaming,
+mesh uploads and entity churn occur **between** the timed frames; their cost appears in the
+71.17-second total and round samples, rather than these frame percentiles. No desktop
+compositor/window presentation or full player HUD is included in this fixture.
+
+The entity/inventory/queue/edge high-water marks are unchanged from warmup to the end:
+**1,124 / 4,000 / 3,999 / 1,000**. Chunk storage remains 25 slots. Dynamic GPU capacity remains
+3,621,120 bytes. The external `ps` trace has 659 samples at approximately 0.1-second intervals:
+after warmup, observed RSS ranges from **72.5 to 123.4 MiB**. The process maximum-resident counter
+is **129,712,128 bytes**; the separate peak-memory-footprint counter is **1,127,974,040 bytes**
+(about 1.05 GiB). They are different operating-system metrics and must not be interchanged.
+
+The first-fifth RSS maximum is 105.8 MiB and the last-fifth maximum is 123.4 MiB, so the trace
+does not prove a perfectly flat resident footprint. It shows a bounded observed range and
+constant Goose pool/GPU capacity counters during this finite run. Native graphics caches and
+the final screenshot/readback contribute memory beyond logical game storage. The artifact
+retains full samples, source hashes, measurement caveats and an earlier unsuccessful run.
+This run precedes final cosmetic lighting/planet adjustments; its allocation policy is the
+same, but it is not represented as a measurement of an identical final shader image.
+
+## 1. Entity lifecycle and stable references
+
+**Implementation:** `ecs::entities` is a fixed-record `reusable` pool. Arbitrary destruction
+returns slots to Goose's freelist. Cross-object identity is an explicit `(slot, u32 generation)`
+handle. Every dereference validates range, liveness and generation. Generation wrap is rejected.
+
+**Measured:** an old handle cannot add resources to or destroy the entity that replaced it in
+the same slot. The entity test performs 50,000 spawns, individual graph-aware destruction and
+bulk clearing. The entity slot high-water remains exactly 1,000 after the first round.
+
+**Tradeoff:** Goose references are memory safe after pool reuse but do not themselves prove
+logical object identity. Generational validation is still an application responsibility. The
+pool retains its maximum allocated slot storage; destruction enables reuse rather than reducing
+its length or promising immediate resident-memory release.
+
+## 2. Independently growing collections
+
+**Implementation:** each entity owns inventory, queue and link slices backed by three
+`reusable[]` slice pools. Resizing returns the slice's current location. Systems replace the
+owner's slice after every resize and retain handles or values rather than element references
+across a possible move. Machines and robots use independent queue runs simultaneously.
+
+**Measured:** 1,000 entities grow inventories in interleaved passes, while queue lengths and
+graph adjacency grow independently. Every element is checked. Inventory/queue/edge pool lengths
+plateau over 50 complete lifecycle rounds. Their high-water lengths exceed live element counts
+because interleaved growth leaves reusable gaps before coalescing.
+
+**Judgment:** this is a real solution to dynamic ownership in Goose, and it was much more
+practical than embedding a separately resizable tail in every entity. It does require explicit
+run ownership and resize discipline; it is less direct than writing nested conventional vectors.
+
+## 3. World streaming and reclamation
+
+**Implementation:** each 32-metre chunk stores 289 heights. Reusable chunk slots are bounded
+at 81; quality selects 25, 49 or 81 resident chunks. Flat generation jobs carry the seed and an
+allocation ticket. Eviction returns a slot; a late result is discarded when its ticket no
+longer matches. Only ready chunks may produce render meshes.
+
+**Measured:** the world test generates 2,745 chunks, including repeated visits and abandoned
+outstanding jobs. Storage tops out at 81 slots. Edits match after eviction/revisit and worker
+restart. Negative coordinates and vertices shared by adjacent chunks are checked explicitly.
+
+**GPU ownership:** the scene releases cached GPU buffers on eviction or revision change.
+Terrain/vegetation mesh arrays are local scratch. Dynamic GPU storage grows geometrically,
+releases its previous buffer on growth, and updates the current buffer thereafter. Shutdown
+releases the remaining buffers, shaders/pipelines, textures and sampler.
+
+**Limitations:** terrain is a heightfield with surface digging/raising. Caves, overhangs, fluid
+simulation and fully volumetric terrain were deliberately omitted. Unique terrain edits and
+resource depletion records remain persistent and therefore grow with genuinely new player
+changes, rather than with chunk traversal alone. Their current lookup is linear.
+
+## 4. Graph structures
+
+**Implementation:** directed logistics edges are generational handles stored in per-owner
+slice runs. Entity destruction removes incoming links and clears targets. Resource packets live
+in a separate reusable pool. Power connectivity is inferred from structures within 14 metres
+and cached by exact membership stamps, with per-tick allocation in stable order; transport links
+are explicit and limited to 24 metres.
+
+Robot routing uses a 41×41 grid at two-metre spacing, a 900-expansion cap and up to two searches
+per tick. A path is stored in the robot's independently growing queue. Scratch search arrays
+die at the end of the call. Buildings and steep terrain constrain movement.
+
+**Measured:** graph deletion leaves only valid handles; packets conserve cargo when a source
+or destination disappears; deterministic component brownouts work; real production supplies the
+communications objective. All 140 recorded A* requests succeed in the corrected fixture, and a
+separate fixture proves robot delivery with no logistics rail.
+
+**Scaling limit:** unchanged power topology now requires O(N) membership validation and O(B)
+allocation work; a changed topology still triggers an O(B²) component rebuild. Exact stamps
+include slot, generation, kind and X/Z position, so raw ECS moves/replacements are detected as
+well as normal construction. Loading clears the cache. Time-of-day output is recomputed every
+tick without requiring a rebuild. Tests cover added, removed, moved, retyped and reused-slot
+buildings, explicit restoration invalidation and daylight changes.
+
+Search setup rasterizes footprints in O(N + covered grid cells), rather than scanning all
+buildings for each grid point. Tests compare its output against the original exact obstacle
+predicate. Incoming-edge cleanup and movement collision checks remain linear, and A* scans its
+open grid instead of using a heap. The actual production benchmark above addresses meaningful
+simulation at the measured scale; larger factories still warrant spatial indexing and
+incremental graph work.
+
+There is no general scene-graph hierarchy: machine meshes are procedural assemblies built into
+temporary triangle streams. This keeps the experiment focused on persistent simulation graphs.
+
+## 5. Temporary memory
+
+**Implementation:** terrain meshes, dynamic scene batches, path reconstruction, graph walks,
+serialization snapshots and sound sample construction use local arrays or fixed arrays.
+Compiler-managed data-stack scope exit reclaims scratch logically. There is no frame-arena
+allocator written in native code.
+
+Particles use a fixed 256-slot cosmetic ring. Frame timing samples are collected only when
+benchmarking and capped at 16,384 samples. Ordinary play does not append an unbounded timing
+history. Persistent pools and sparse modifications have explicitly longer ownership.
+
+**Observability limit:** the compiler's `--stacks` and optional `GS_STACK_STATS` reveal data
+stack/region counts and reservations. They do not supply per-frame committed-byte high-water
+values to this game's HUD. The HUD reports live/storage counts, and process memory must be
+measured externally. A 2 GB address-space reservation per stack is not 2 GB of committed RAM.
+The full application build log records six data stacks plus 22 global stacks for the main
+program (28 regions), and one data-stack region per terrain worker. Standalone tests can have
+different counts because compilation specializes their reachable programs.
+
+## 6. Persistence and relative references
+
+**Implementation:** runtime entity slices are not a serializable position-independent image.
+The save code constructs flat `SavedEntity` records with finished inline arrays, plus flat
+packet, edit, depletion and game-header data. It uses Goose's `to_bytes`/`from_bytes`, an explicit
+schema version and FNV-1a checksum. The operating-system API writes the replacement atomically.
+
+Load verifies framing and data layout, checksum, finite/ranged coordinates, resource/count
+bounds, unique slots and valid generational graph references before mutating the current game.
+It restores original slots independently of freelist order, reconstructs collection runs and
+keeps the global generation counter monotonic. Orphaned in-flight cargo remains present and is
+delivered/refunded by normal transport logic. Generated deposits regenerate from seed and
+persisted depletion.
+
+**Measured:** the 932-byte fixture preserves machine progress, inventories, production queue,
+signed robot waypoints, robot state/target/cargo, graph links, packets, edits and game progress.
+Fifty reloads after 1,000-slot churn leave all pool high-water lengths unchanged. Truncation,
+checksum damage and correctly checksummed invalid coordinates/handles reject without changing
+the running state. Orphan packets demonstrably deliver or refund after loading.
+
+**Judgment:** flat snapshots fit Goose well, but the runtime graph could not simply be dumped
+as bytes. Goose's self-relative links can support an immutable position-independent image; this
+engine instead uses handles so destroyed/reused objects can be recognized. No custom relative
+pointer implementation or native serialization fallback was necessary. Schema version 1 has
+no migration, and the checksum provides corruption detection rather than authenticity.
+
+## 7. Thread isolation and communication
+
+**Implementation:** two actual Goose `thread_fn` workers consume typed flat jobs. Their input
+contains no slices, references or main-thread mutable world state. The seed travels explicitly
+in each job. Results contain 289 `f32` heights, coordinates, ticket and generation CPU duration.
+No shared mutable arrays, atomics or locks are assumed by the game code.
+
+The job's declared fields total 37 bytes and the result's fields total 1,196 bytes; queue
+metadata/runtime overhead is additional. At most eight jobs are outstanding, and both typed
+queues are bounded. Workers stop with explicit messages and are joined after results drain.
+
+**Measured:** threaded heights equal serial generation at every sampled vertex in the test.
+Queue-call time is small relative to the generation/wait totals in the recorded fixture. This
+does not prove a parallel speedup: there is no controlled serial-versus-parallel end-to-end
+benchmark for the whole streaming pipeline, and small height jobs may cost less than dispatch.
+
+**Judgment:** isolation was not a blocking architecture limitation here. It naturally matched
+independent chunk jobs. Meshing and pathfinding remain on the main program; parallelizing their
+larger inputs/results would require another explicit copy/bandwidth experiment.
+
+## 8. Fragmentation, reuse and long-running behavior
+
+**Measured:** entity, inventory, queue and adjacency storage plateau under repeated interleaved
+churn. Chunk storage plateaus under repeated teleports. Repeated persistence transactions reuse
+all relevant runtime pools. The longer GPU run repeats 2.5 million entity lifecycles and 62,500
+chunk generations while all recorded pool high-water marks remain fixed after warmup. The
+separate production fixture also plateaus under storage-bearing, graph-linked churn. These
+directly exercise reusable slots and coalescing slice runs, rather than merely creating
+append-only data and exiting.
+
+**What this establishes:** the tested workloads do not accumulate unusable storage on each
+repeat. Pool high-water metadata makes retention visible in the debug overlay and test output.
+
+**What it does not establish:** these finite tests are not a proof against every fragmentation
+pattern, a multi-hour RSS/GPU leak, or growth caused by indefinitely adding distinct buildings
+and modifications. Reusable pools intentionally retain their peak backing storage. The observed
+RSS range and substantially higher native footprint counter also require more attribution than
+pool lengths alone provide. A stronger production study needs mixed-size adversarial traces,
+longer measured runs and GPU allocation instrumentation.
+
+## Actual implementation problems and unsuccessful assumptions
+
+1. **Local fixed arrays require initialization.** Initial A* source declared fixed `bool`
+   arrays and read entries before initializing them. Pinned documentation requires full local
+   initialization, but v2026.3 accepted the source and generated uninitialized C arrays. All 97
+   path attempts failed in the initial run. Explicit `[false; COUNT]` initializers produced
+   successful paths and a passing progression test. This was an application initialization
+   error plus a missing definite-assignment diagnostic, not a failure to honor a promised zero
+   default. The corrected source initializes every read search flag.
+2. **Variable-size copies are explicit.** Constructing the save envelope with an existing
+   payload builder failed compilation with a diagnostic requiring `copy(payload)` or a
+   reference. The implementation uses an explicit snapshot copy. This makes the extra memory
+   traffic visible, but means saving temporarily holds more than one byte image.
+3. **Float precision conversions need typed intermediates.** Expressions such as
+   `sin(j * 2.1)` selected `f64` and could not silently become `f32` mesh coordinates. The
+   diagnostic required an explicit rounding cast. Typed `f32` intermediates/casts fixed the
+   scene/camera math. This is a language rule, not a compiler bug.
+4. **Online documentation is ahead of the pinned release.** Master documentation described
+   `trim_memory`, while v2026.3's `os` module lacks it and the compiler reported an unknown
+   function. A `goose format` invocation was also unsupported; the release help has no formatter
+   command. The project does not call the missing API or invent a native equivalent.
+5. **Zero-stack worker diagnostics are misleading.** The standalone world test reported a
+   worker using zero data-stack regions and then printed a zero worker cap with a division by
+   zero in the diagnostic text. Two workers actually executed successfully. Whole-application
+   specialization can report a different worker stack count; the build's actual `--stacks`
+   output is authoritative. The game uses an explicit bounded pair rather than relying on that
+   diagnostic to choose a count.
+6. **Raw runtime pool serialization is the wrong representation.** Entity records contain
+   ordinary slices and runtime freelists are not the save schema. The implemented flat snapshot
+   and reconstruction replaced that initial tempting approach before it became a native-code
+   workaround.
+7. **A robot policy bug caused repeated route failures.** After search flags were initialized,
+   robots could still haul resources back out of the home lander and then enter its footprint,
+   trapping subsequent routes. Consumer/home priorities and a three-metre lander arrival
+   clearance fixed the policy. The final fixture completes 140 plans with zero failures and
+   includes rail-free cargo delivery. This was game logic, not a Goose memory limitation. The
+   planner still has an explicit local radius and expansion cap, so arbitrary layouts can fail
+   and retry after cooldown.
+8. **Generic links were initially rendered as transport rails.** The first GPU stress fixture
+   exposed scene code drawing AI/stress ownership links as conveyors. It reached 922,497
+   triangles, a 207,608,640-byte dynamic buffer, 22.558 ms mean frame time and 2,287,239,168 bytes
+   maximum resident size. Restricting conveyor rendering to building-to-building links removed
+   the unintended geometry. The corrected long run uses a 3,621,120-byte dynamic buffer. Both
+   runs remain recorded in the artifact; this was a scene-interpretation bug, not evidence that
+   Goose's reusable pool leaked.
+9. **Uncached work missed the simulation target.** The first real 2,002-structure fixture
+   averaged 78.018 ms per debug tick. It exposed repeated all-building obstacle scans and power
+   reconstruction. Exact obstacle rasterization and invalidatable topology membership caching
+   improved same-build mean time to 6.525 ms without changing output/conservation/route counts.
+   Release measurements are reported separately rather than credited to those source changes.
+10. **Official UI/native memory growth needed an explicit workaround.** A full-HUD benchmark
+    reached roughly 2 GB RSS and a much larger footprint counter in 3,000 frames, despite fixed
+    game pools. A UI-only reproducer isolated the resource-retirement interaction described
+    above. Exact-sized uploads and disabling validation failed; retiring one small GPU buffer
+    per frame succeeded in both synchronous and pipelined tests. The project retains all
+    measurements and the version-specific workaround. The native cleanup explanation remains
+    an inference rather than a claimed driver-level root cause.
+
+## Native integration and production assessment
+
+The game reused the official graphics, UI and audio facilities instead of writing new bindings.
+The boundary is explicit: Goose owns `Vertex` arrays, game state and lifetime policy; official
+native calls create/update/release GPU objects, present frames, read input, render UI and play
+PCM samples. Basic collision is implemented directly in Goose because the world is a
+heightfield with simple building footprints. No extra physics library was necessary.
+
+**Subjective conclusion:** Goose's memory model can sustain an evolving, playable small colony
+when object identity and allocation ownership are designed explicitly. Reusable slice pools
+solve the most important dynamic-collection obstacle without a hidden general-purpose heap.
+Scope reclamation and flat messages are useful engine primitives. The costs are deliberate
+layout choices, explicit copies, snapshot conversion, a version-specific graphics cleanup
+workaround and weaker tooling/diagnostics than a mature game-engine language ecosystem. This
+experiment supports further engine work in Goose;
+it does not yet justify selecting it for a production-scale open-world factory without more
+profiling, compiler hardening and navigation/spatial-index work.

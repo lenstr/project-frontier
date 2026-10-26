@@ -1,0 +1,40 @@
+{
+  "synchronous_gpu_completion": true,
+  "resolution": [1920,1080],
+  "frames": 2989,
+  "average_fps": 1526.3363230764937,
+  "frame_ms_p50": 0.6419997662305832,
+  "frame_ms_p95": 0.7340000011026859,
+  "frame_ms_p99": 0.9300000965595245,
+  "simulation_ms_p95": 0.001000240445137024,
+  "render_cpu_ms_p95": 0.339999794960022,
+  "mesh_cpu_ms_p95": 0.0009997747838497162,
+  "entity_slots": 133,
+  "active_entities": 133,
+  "chunk_slots": 49,
+  "generated_chunks": 49,
+  "generation_cpu_total_ms": 0.14900000000000008,
+  "queue_calls_total_ms": 0.11800000000000009,
+  "quality_radius": 3,
+  "shadows": true
+}
+
+FRONTIER rendered 3000 frames; 133 entities; 49 chunks; triangles=64531 screenshot=artifacts/benchmark.png
+        2.61 real         0.83 user         0.82 sys
+            96518144  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+              255882  page reclaims
+                   5  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+                   0  voluntary context switches
+               18637  involuntary context switches
+         20966458843  instructions retired
+          7012028521  cycles elapsed
+           515589512  peak memory footprint

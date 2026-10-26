@@ -1,0 +1,20 @@
+{
+  "synchronous_gpu_completion": true,
+  "resolution": [1920,1080],
+  "frames": 2989,
+  "average_fps": 385.8318516586116,
+  "frame_ms_p50": 2.3040003143250942,
+  "frame_ms_p95": 4.587000235915184,
+  "frame_ms_p99": 10.239999741315842,
+  "simulation_ms_p95": 0.005000270903110504,
+  "render_cpu_ms_p95": 1.0919999331235886,
+  "mesh_cpu_ms_p95": 0.001000240445137024,
+  "entity_slots": 133,
+  "active_entities": 133,
+  "chunk_slots": 49,
+  "generated_chunks": 49,
+  "generation_cpu_total_ms": 0.14200000000000007,
+  "queue_calls_total_ms": 0.32200000000000023,
+  "quality_radius": 3,
+  "shadows": true
+}

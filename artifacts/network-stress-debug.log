@@ -1,0 +1,27 @@
+goose stack stats: worker 0: 0 data stacks, 0 regions (reserving 2 GB each); budget 32 TB for 16376, main program 24, no workers
+goose stack stats: worker 1: 0 data stacks, 0 regions (reserving 2 GB each); budget 32 TB for 16376, main program 24, no workers
+network stress: PASS; 2155 entities, 400 active production machines, 32 robots
+simulation tick ms: mean=6.525016667631765 p50=3.346999641507864 p95=36.61500010639429 p99=74.18900029733777 max=146.30099991336465
+production=1600 peak_packets=1181 peak_queue_entries=508 paths=1088 failed_paths=0 path_total_ms=1746.1340017616749
+conservation: ferrite=20836 glacite=13206 stone=24; churn=10000 reused structures, plateau slots=3155 inventory_cells=2386 edge_cells=2018 churn_ms=167.2720001079142
+goose stack stats: worker 2: 0 data stacks, 0 regions (reserving 2 GB each); budget 32 TB for 16376, main program 24, no workers
+goose stack stats: worker 3: 0 data stacks, 0 regions (reserving 2 GB each); budget 32 TB for 16376, main program 24, no workers
+goose stack stats: main: 7 data stacks, 24 regions (reserving 2 GB each); budget 32 TB for 16376, main program 24, no workers
+        4.67 real         4.65 user         0.01 sys
+             3145728  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+                 376  page reclaims
+                   1  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+                   0  voluntary context switches
+                 810  involuntary context switches
+         79797619471  instructions retired
+         20072497473  cycles elapsed
+             2474800  peak memory footprint

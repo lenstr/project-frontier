@@ -1,0 +1,19 @@
+FRONTIER rendered 30000 frames; 133 entities; 49 chunks; triangles=64539 screenshot=artifacts/full-app-memory.png
+        9.63 real         7.19 user         5.46 sys
+           101646336  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+             2467879  page reclaims
+                   5  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+                   1  voluntary context switches
+              176554  involuntary context switches
+        187149584047  instructions retired
+         53515580243  cycles elapsed
+           900711624  peak memory footprint

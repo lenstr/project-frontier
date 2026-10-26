@@ -1,0 +1,8 @@
+.tools/
+build/
+*.sav
+*.sav.bak
+*.tmp
+.DS_Store
+artifacts/build.log
+artifacts/package.log

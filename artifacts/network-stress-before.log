@@ -1,0 +1,25 @@
+network stress: PASS; 2155 entities, 400 active production machines, 32 robots
+simulation tick ms: mean=78.01770666458954 p50=76.07900025323033 p95=127.00999993830919 p99=193.62800009548664 max=314.63799998164177
+production=1600 peak_packets=1181 peak_queue_entries=508 paths=1088 failed_paths=0 path_total_ms=26601.14899277687
+conservation: ferrite=20836 glacite=13206 stone=24; churn=10000 reused structures, plateau slots=3155 inventory_cells=2386 edge_cells=2018 churn_ms=280.26900021359324
+goose stack stats: worker 0: 0 data stacks, 0 regions (reserving 2 GB each); budget 32 TB for 16376, main program 21, no workers
+goose stack stats: worker 1: 0 data stacks, 0 regions (reserving 2 GB each); budget 32 TB for 16376, main program 21, no workers
+goose stack stats: main: 6 data stacks, 21 regions (reserving 2 GB each); budget 32 TB for 16376, main program 21, no workers
+       51.19 real        50.22 user         0.30 sys
+             3047424  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+                 367  page reclaims
+                   1  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+                   0  voluntary context switches
+               40037  involuntary context switches
+        718860641253  instructions retired
+        140194939593  cycles elapsed
+             2327272  peak memory footprint

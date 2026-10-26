@@ -1,0 +1,251 @@
+{
+  "test": "Official Goose UI/native GPU memory isolation",
+  "date": "2026-10-26",
+  "platform": "macOS arm64",
+  "compiler": "Goose v2026.3",
+  "native_backend": {
+    "graphics": "Metal",
+    "sdl_revision": "SDL-3.4.16-fa2c02bb6",
+    "source_url": "https://github.com/libsdl-org/SDL/blob/fa2c02bb6/src/gpu/metal/SDL_gpu_metal.m"
+  },
+  "source": {
+    "path": "tests/ui_memory_probe.goose",
+    "sha256": "6c6cfd4b588c1bcff9dd93ac82d90e1516c8124ddb4193917f6c30fc1faa7b77",
+    "hash_note": "Final probe includes all isolation modes. Runs used successive probe revisions as modes were added; the final source reproduces each mode. No game source was edited by the investigator."
+  },
+  "build_command": ".tools/goose-v2026.3-macos-arm64/goose build tests/ui_memory_probe.goose -o build/ui-memory-probe",
+  "configuration": {
+    "resolution": [
+      1920,
+      1080
+    ],
+    "headless": true,
+    "text_lines_per_frame": 30,
+    "contexts": 2,
+    "ui_scale": 1.35,
+    "truetype_font": "assets/Roboto-Regular.ttf",
+    "game_state": false
+  },
+  "results": [
+    {
+      "id": "baseline-1000",
+      "command": "/usr/bin/time -l ./build/ui-memory-probe 1000",
+      "mode": "baseline",
+      "frames": 1000,
+      "environment": {},
+      "exit_code": 0,
+      "maximum_resident_set_size_bytes": 246890496,
+      "macos_peak_memory_footprint_bytes": 17508435000,
+      "real_seconds": 1.4,
+      "user_seconds": 0.17,
+      "system_seconds": 0.45,
+      "synchronous_gpu_completion_per_frame": true,
+      "per_frame_sleep_ms": 0,
+      "observed_ui_state": {
+        "font_textures": 2,
+        "vertex_gpu_capacity_bytes": 131072,
+        "index_gpu_capacity_bytes": 65536
+      }
+    },
+    {
+      "id": "baseline-3000",
+      "command": "/usr/bin/time -l ./build/ui-memory-probe 3000",
+      "mode": "baseline",
+      "frames": 3000,
+      "environment": {},
+      "exit_code": 0,
+      "maximum_resident_set_size_bytes": 633044992,
+      "macos_peak_memory_footprint_bytes": 51876480320,
+      "real_seconds": 2.26,
+      "user_seconds": 0.52,
+      "system_seconds": 1.25,
+      "synchronous_gpu_completion_per_frame": true,
+      "per_frame_sleep_ms": 0,
+      "observed_ui_state": {
+        "font_textures": 2,
+        "vertex_gpu_capacity_bytes": 131072,
+        "index_gpu_capacity_bytes": 65536
+      }
+    },
+    {
+      "id": "debug-off-1000",
+      "command": "GOOSE_GFX_DEBUG=0 /usr/bin/time -l ./build/ui-memory-probe 1000",
+      "mode": "baseline",
+      "frames": 1000,
+      "environment": {
+        "GOOSE_GFX_DEBUG": "0"
+      },
+      "exit_code": 0,
+      "maximum_resident_set_size_bytes": 246693888,
+      "macos_peak_memory_footprint_bytes": 17508221984,
+      "real_seconds": 0.78,
+      "user_seconds": 0.16,
+      "system_seconds": 0.44,
+      "synchronous_gpu_completion_per_frame": true,
+      "per_frame_sleep_ms": 0,
+      "observed_ui_state": {
+        "font_textures": 2,
+        "vertex_gpu_capacity_bytes": 131072,
+        "index_gpu_capacity_bytes": 65536
+      }
+    },
+    {
+      "id": "recreate-both-1000",
+      "command": "/usr/bin/time -l ./build/ui-memory-probe 1000 recreate",
+      "mode": "recreate",
+      "frames": 1000,
+      "environment": {},
+      "exit_code": 0,
+      "maximum_resident_set_size_bytes": 72581120,
+      "macos_peak_memory_footprint_bytes": 394642320,
+      "real_seconds": 1.04,
+      "user_seconds": 0.17,
+      "system_seconds": 0.17,
+      "synchronous_gpu_completion_per_frame": true,
+      "per_frame_sleep_ms": 0
+    },
+    {
+      "id": "exact-sized-1000",
+      "command": "/usr/bin/time -l ./build/ui-memory-probe 1000 exact",
+      "mode": "exact",
+      "frames": 1000,
+      "environment": {},
+      "exit_code": 0,
+      "maximum_resident_set_size_bytes": 230817792,
+      "macos_peak_memory_footprint_bytes": 15908963384,
+      "real_seconds": 1.08,
+      "user_seconds": 0.17,
+      "system_seconds": 0.43,
+      "synchronous_gpu_completion_per_frame": true,
+      "per_frame_sleep_ms": 0
+    },
+    {
+      "id": "recreate-index-1000",
+      "command": "/usr/bin/time -l ./build/ui-memory-probe 1000 recreate-index",
+      "mode": "recreate-index",
+      "frames": 1000,
+      "environment": {},
+      "exit_code": 0,
+      "maximum_resident_set_size_bytes": 71958528,
+      "macos_peak_memory_footprint_bytes": 393429904,
+      "real_seconds": 0.68,
+      "user_seconds": 0.15,
+      "system_seconds": 0.13,
+      "synchronous_gpu_completion_per_frame": true,
+      "per_frame_sleep_ms": 0
+    },
+    {
+      "id": "recreate-vertex-1000",
+      "command": "/usr/bin/time -l ./build/ui-memory-probe 1000 recreate-vertex",
+      "mode": "recreate-vertex",
+      "frames": 1000,
+      "environment": {},
+      "exit_code": 0,
+      "maximum_resident_set_size_bytes": 71909376,
+      "macos_peak_memory_footprint_bytes": 393397136,
+      "real_seconds": 0.38,
+      "user_seconds": 0.15,
+      "system_seconds": 0.12,
+      "synchronous_gpu_completion_per_frame": true,
+      "per_frame_sleep_ms": 0
+    },
+    {
+      "id": "recreate-index-pipelined-3000",
+      "command": "/usr/bin/time -l ./build/ui-memory-probe 3000 recreate-index-pipelined",
+      "mode": "recreate-index-pipelined",
+      "frames": 3000,
+      "environment": {},
+      "exit_code": 0,
+      "maximum_resident_set_size_bytes": 72810496,
+      "macos_peak_memory_footprint_bytes": 405095336,
+      "real_seconds": 6.83,
+      "user_seconds": 1.72,
+      "system_seconds": 1.13,
+      "synchronous_gpu_completion_per_frame": false,
+      "per_frame_sleep_ms": 1
+    },
+    {
+      "id": "sentinel-1000",
+      "command": "/usr/bin/time -l ./build/ui-memory-probe 1000 sentinel",
+      "mode": "sentinel",
+      "frames": 1000,
+      "environment": {},
+      "exit_code": 0,
+      "maximum_resident_set_size_bytes": 71729152,
+      "macos_peak_memory_footprint_bytes": 376161216,
+      "real_seconds": 0.93,
+      "user_seconds": 0.17,
+      "system_seconds": 0.17,
+      "synchronous_gpu_completion_per_frame": true,
+      "per_frame_sleep_ms": 0
+    }
+  ],
+  "measured_facts": [
+    "Retaining both UI GPU buffers grew maximum RSS from 246,890,496 bytes at 1,000 frames to 633,044,992 bytes at 3,000 frames. Native UI texture and GPU buffer capacity counters remained fixed.",
+    "Recreating either the vertex or index GPU buffer each frame removed the observed growth. Recreating both also worked.",
+    "Retiring only the index buffer remained bounded for 3,000 pipelined frames without gfx::flush. This mode sleeps 1 ms per frame and is not a throughput benchmark.",
+    "Keeping both UI buffers but creating/releasing an unrelated 16-byte GPU buffer each frame also removed the growth.",
+    "Exact-sized uploads and disabling graphics validation did not remove the growth.",
+    "Generated C for ui::render resets all three temporary Goose stack tops on return. Unchanged-scale font baking returns immediately; native UI command/conversion buffers clear each frame."
+  ],
+  "native_inference": {
+    "conclusion": "Evidence points to native SDL/Metal command-buffer or staging-resource cleanup timing, rather than Goose entity collections, UI font rebaking, or unreclaimed ui::render scratch.",
+    "caveat": "The exact native defect was not proven. Buffer retirement and the sentinel introduce fresh native submissions/destruction, either of which can change cleanup timing. Do not describe this as an index-format-specific leak.",
+    "streaming_test_caveat": "The long GPU streaming workload released terrain buffers every 20 frames; that intervention can mask this static-scene native growth. The full app therefore needs its own post-workaround memory test.",
+    "official_source_findings": [
+      {
+        "path": "pkg/gfx/src/ui/ui_font.c",
+        "line": 376,
+        "fact": "Unchanged-scale atlas baking returns immediately."
+      },
+      {
+        "path": "pkg/gfx/src/ui/ui_core.c",
+        "line": 480,
+        "fact": "input_begin ends and clears the previous drawn frame."
+      },
+      {
+        "path": "pkg/gfx/src/ui/ui_core.c",
+        "line": 931,
+        "fact": "Conversion command, vertex and index buffers are cleared before reuse."
+      },
+      {
+        "path": "pkg/gfx/src/gfx/gfx_resources.c",
+        "line": 110,
+        "fact": "Each buffer upload creates a transfer buffer and releases it at line 124."
+      },
+      {
+        "path": "SDL_gpu_metal.m",
+        "line": 997,
+        "fact": "ReleaseTransferBuffer delegates ReleaseBuffer."
+      },
+      {
+        "path": "SDL_gpu_metal.m",
+        "line": 3413,
+        "fact": "Command-buffer cleanup drops references to used resources."
+      },
+      {
+        "path": "SDL_gpu_metal.m",
+        "line": 4108,
+        "fact": "Submit cleans completed command buffers, then performs pending destruction."
+      },
+      {
+        "path": "SDL_gpu_metal.m",
+        "line": 3619,
+        "fact": "WaitForFences performs pending destruction after waiting."
+      }
+    ]
+  },
+  "workaround": {
+    "scope": "UI GPU resource retirement only; no game storage/allocator changes",
+    "after": "Render all UI contexts, then retire/reset the shared index buffer once.",
+    "goose": "gfx::release(ui::renderer.index_buffer);\nui::renderer.index_buffer = gfx::Buffer { 0 };\nui::renderer.index_capacity = 0;",
+    "portability_note": "Measured on the pinned macOS Metal backend. Other backends were not tested."
+  },
+  "measurement_notes": [
+    "All reported maxima include native graphics driver allocations and process teardown.",
+    "macOS peak memory footprint differs from RSS and is preserved as a separate counter.",
+    "A finite probe and bounded counters do not prove absence of every native leak.",
+    "The text log is a faithful transcription of selected captured output fields, not a byte-for-byte saved subprocess stream.",
+    "The 3,000-frame UI runs differ in submission pacing; matching 1,000-frame synchronous runs isolate the retirement intervention. Full application before/after testing is separate."
+  ]
+}

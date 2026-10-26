@@ -1,0 +1,71 @@
+UI memory isolation probe — captured terminal measurement excerpts
+These measurements were already run during investigation. No runs were repeated to create this archive.
+The original process pipes were captured by the terminal tool, not saved to separate temporary files.
+This log transcribes the commands and measured /usr/bin/time -l output fields from those captures.
+Progress excerpts are omitted; every completed run printed UI_PROBE PASS.
+Platform: macOS arm64, Goose v2026.3, SDL-3.4.16-fa2c02bb6, Metal.
+Resolution: real headless 1920x1080. Two UI contexts, fixed scale 1.35, 30 text lines, no game state.
+RSS and peak memory footprint are distinct macOS counters, both reported in bytes.
+
+CASE baseline-1000
+$ /usr/bin/time -l ./build/ui-memory-probe 1000
+UI_PROBE PASS frames=1000
+        1.40 real         0.17 user         0.45 sys
+          246890496  maximum resident set size
+          17508435000  peak memory footprint
+
+CASE baseline-3000
+$ /usr/bin/time -l ./build/ui-memory-probe 3000
+UI_PROBE PASS frames=3000
+        2.26 real         0.52 user         1.25 sys
+          633044992  maximum resident set size
+          51876480320  peak memory footprint
+
+CASE debug-off-1000
+$ GOOSE_GFX_DEBUG=0 /usr/bin/time -l ./build/ui-memory-probe 1000
+UI_PROBE PASS frames=1000
+        0.78 real         0.16 user         0.44 sys
+          246693888  maximum resident set size
+          17508221984  peak memory footprint
+
+CASE recreate-both-1000
+$ /usr/bin/time -l ./build/ui-memory-probe 1000 recreate
+UI_PROBE PASS frames=1000
+        1.04 real         0.17 user         0.17 sys
+          72581120  maximum resident set size
+          394642320  peak memory footprint
+
+CASE exact-sized-1000
+$ /usr/bin/time -l ./build/ui-memory-probe 1000 exact
+UI_PROBE PASS frames=1000
+        1.08 real         0.17 user         0.43 sys
+          230817792  maximum resident set size
+          15908963384  peak memory footprint
+
+CASE recreate-index-1000
+$ /usr/bin/time -l ./build/ui-memory-probe 1000 recreate-index
+UI_PROBE PASS frames=1000
+        0.68 real         0.15 user         0.13 sys
+          71958528  maximum resident set size
+          393429904  peak memory footprint
+
+CASE recreate-vertex-1000
+$ /usr/bin/time -l ./build/ui-memory-probe 1000 recreate-vertex
+UI_PROBE PASS frames=1000
+        0.38 real         0.15 user         0.12 sys
+          71909376  maximum resident set size
+          393397136  peak memory footprint
+
+CASE recreate-index-pipelined-3000
+$ /usr/bin/time -l ./build/ui-memory-probe 3000 recreate-index-pipelined
+UI_PROBE PASS frames=3000
+        6.83 real         1.72 user         1.13 sys
+          72810496  maximum resident set size
+          405095336  peak memory footprint
+
+CASE sentinel-1000
+$ /usr/bin/time -l ./build/ui-memory-probe 1000 sentinel
+UI_PROBE PASS frames=1000
+        0.93 real         0.17 user         0.17 sys
+          71729152  maximum resident set size
+          376161216  peak memory footprint

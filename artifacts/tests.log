@@ -1,0 +1,26 @@
+parsed ok: 271 top-level declarations, 6 file(s)
+typechecked ok: 137 specialization(s), 14 struct/0 enum instance(s); optimized -O2: 12 inlined, 0 base case(s), 24 folded, 0 propagated, 0 tail loop(s), 0 reassociated
+bce: elided 21/54 index and 9/9 slice checks
+wrote /Users/lenstr/.goose/build/prog/entities_test-6a2689b5/entities_test.c (159934 bytes)
+built build/entities_test
+PASS entities: 50000 spawns, stale handles, independent inventories/queues/edges, graph deletion
+pool plateaus: slots=1000 inventory=12064 queue=5339 edges=3002 elapsed_ms=387.25999975576997
+parsed ok: 306 top-level declarations, 7 file(s)
+typechecked ok: 167 specialization(s), 16 struct/0 enum instance(s); optimized -O2: 61 inlined, 0 base case(s), 43 folded, 81 propagated, 0 tail loop(s), 0 reassociated
+bce: elided 37/45 index and 0/0 slice checks
+wrote /Users/lenstr/.goose/build/prog/world_test-e2b46c6d/world_test.c (152468 bytes)
+built build/world_test
+world: PASS; chunks generated=2745 evicted=2639 slots_high_water=81 edits=14 max_pending=8 generation_ms_total=201.4230000000036 queue_call_ms=0.7680000000000006 blocking_drain_ms=107.24099999999969 elapsed_ms=114.56000013276935 checksum=351.1697779148817
+parsed ok: 431 top-level declarations, 10 file(s)
+typechecked ok: 233 specialization(s), 22 struct/0 enum instance(s); optimized -O2: 221 inlined, 0 base case(s), 96 folded, 413 propagated, 0 tail loop(s), 0 reassociated
+bce: elided 108/199 index and 6/6 slice checks
+wrote /Users/lenstr/.goose/build/prog/gameplay_test-b45068d3/gameplay_test.c (423314 bytes)
+built build/gameplay_test
+progression: PASS; automatic craft count=137 paths=140 failed_paths=0 route_ms=267.33000157400966 game_seconds=202.20773
+gameplay: PASS; packet conservation, component brownouts, 1000-object reuse; elapsed_ms=309.689000248909
+parsed ok: 461 top-level declarations, 11 file(s)
+typechecked ok: 254 specialization(s), 25 struct/0 enum instance(s); optimized -O2: 144 inlined, 0 base case(s), 59 folded, 98 propagated, 0 tail loop(s), 0 reassociated
+bce: elided 41/108 index and 6/7 slice checks
+wrote /Users/lenstr/.goose/build/prog/persistence_test-aad13016/persistence_test.c (331876 bytes)
+built build/persistence_test
+persistence: PASS; snapshot_bytes=932 preserved_live=4 pool_slots=1000 repeated_loads=50, checksum/truncation/semantic rejection leave state intact
