@@ -11,12 +11,18 @@ packages provide the GPU/window/input interface, immediate-mode text/UI and PCM 
 | `frontier.goose` | Entry point, CLI, camera, player collision, aiming, controls, frame loop, benchmarks |
 | `src/entities.goose` | Reusable entity slots, generational handles, independent inventories/queues/edges |
 | `src/world.goose` | Seeded heightfield, sparse edits, bounded streaming cache, isolated generation workers |
+| `src/horizon.goose` | Four cached terrain LOD rings, staged replacement and explicit GPU retirement |
 | `src/navigation.goose` | Bounded A* and route following over edited terrain and building obstacles |
 | `src/sim.goose` | Deposits, mining, construction, recipes, power, resource transport, robots, objective |
 | `src/persistence.goose` | Flat verified snapshots and reconstruction of runtime pools |
 | `src/render.goose` | Goose mesh primitives, GPU handles, shadow/sky/scene pipelines |
 | `src/scene.goose` | Cached terrain/vegetation, machine assemblies, transport visuals, particles |
 | `src/hud.goose` | HUD, build cards, help/pause interface, debug counters |
+| `src/dev_panel.goose` | Interactive F1 inspector, settings/actions, charts and entity graph navigation |
+| `src/telemetry.goose` | Bounded frame history, measured CPU stages and sampled pool counters |
+| `src/showcase.goose` | Finite-input 32–2,000 entity colony, ownership and resource-preserving resizing |
+| `src/free_flight.goose` | Detached camera motion and projected streaming focus, independent of player state |
+| `src/flight_playtest.goose` | Real injected-input survey-flight integration driver |
 | `src/sound.goose` | Procedural sound samples and official audio API calls |
 | `src/types.goose` | Shared vertex format and small numeric helpers |
 
@@ -76,14 +82,30 @@ two-metre spacing. Terrain generation combines deterministic noise scales with a
 area. Climate noise chooses teal meadow, amber mesas or lavender fungal terrain. Geometry is
 flat-shaded; vertex colors encode height, slope, strata, exposed soil and local concavity.
 
-Quality radii 2, 3 and 4 retain square windows of 25, 49 and 81 chunks. Missing chunks are
-requested nearest first. The cache uses reusable slots and never exceeds 81 slots. A chunk may
+Quality radii 3, 6 and 8 retain square windows of 49, 169 and 289 chunks; the developer slider
+also permits radius 2. Missing chunks are requested nearest first. The cache uses reusable
+slots and never exceeds 289 slots. A chunk may
 be active but not ready while its worker job is outstanding.
 
 Two workers consume flat jobs carrying coordinates, slot, allocation ticket and seed. Workers
 return 289 heights and generation CPU time. They do not read mutable main-thread state. At most
 eight jobs are outstanding. A returned ticket must still match the active slot: an old result
 cannot overwrite a replacement chunk after a teleport.
+
+Shared climate weights drive height, biome names, surface color and vegetation. Value noise
+builds ridges, amber terraces, fungal basins and a dry salt channel. Hashed 384 m cells add
+spires or craters. Flat landing/district masks override those features; a 40 m wide approach
+along the initial camera forward axis connects them, with a smooth 16 m shoulder.
+
+`horizon` adds four non-shadow-casting terrain rings with 8/16/32/64 m base cells. Landmarks
+receive local refinement. The center snaps to 64 m cells. An unchanged request does no work;
+a changed request builds at most one ring per ordinary frame and swaps all four together.
+Center changes during a build are coalesced: the current set finishes, then follows the newest
+center. This prevents fast flight from cancelling every partial set. Seed/detail/distance
+changes still cancel incompatible work. Fog fades by distance to the active ring center and
+its square boundary, rather than assuming the camera is centered inside the rings.
+Active and staging sets own at most eight GPU meshes. Skirts and a buried overlap hide LOD
+seams. Distant terrain omits fine player edits; detailed chunks preserve and display them.
 
 `world::height` samples the procedural field plus edits independently of residency and follows
 the same diagonal split as the mesh. Collision and navigation therefore work before a chunk's
@@ -106,8 +128,12 @@ revision releases the old buffer explicitly. Terrain and static vegetation are r
 scope-local Goose vertex array, uploaded, and then the CPU scratch scope ends. GPU handles are
 not stored in world saves.
 
-Machines, robots, carried ore, transport rails, status lights and particles are assembled into a
-dynamic triangle batch. The renderer grows its dynamic GPU buffer geometrically and otherwise
+Machines, robots, carried ore, moving rail chevrons, status lights and particles are assembled
+into a dynamic triangle batch. Static rail decks, supports and beams share a cached GPU mesh.
+Exact building/link/position/generation, terrain-edit and visibility snapshots invalidate that
+mesh; unchanged frames do no rail uploads. A separate exact topology cache selects wire
+endpoints, while their power colors remain live. Replacement explicitly retires the old rail
+buffer. The renderer grows its dynamic GPU buffer geometrically and otherwise
 updates it in place. On growth it releases the previous handle. The scene shutdown path releases
 cached meshes; renderer shutdown releases pipelines, shadow texture, sampler and dynamic buffer.
 
@@ -124,6 +150,19 @@ pinned module's `ui::renderer` fields. No native code or custom allocator is add
 experiments also bounded memory by releasing an unrelated 16-byte sentinel buffer, so the
 evidence points toward native GPU cleanup timing rather than proving a defect in index-buffer
 storage itself. Keep the reproducer and rerun memory tests when upgrading the graphics package.
+
+## Detached survey camera
+
+`free_flight` owns its own eye, yaw, pitch, smoothed velocity and bounded speed. It receives
+small input values; it cannot mutate player or simulation state. The application maps G/F10,
+WASD, Q/E, Shift, mouse look/wheel and Home into this controller. Level movement keeps surveying
+predictable, with altitude controlled separately. The camera stays above terrain.
+
+The application projects a bounded look-ahead point onto terrain for detail streaming, LOD
+requests and scene visibility. The suit remains at its original location, so construction,
+mining and cargo transfer controls are suspended during flight. Production continues. Leaving
+flight restores the third-person camera without moving the suit; loading returns to suit mode.
+Camera survey state is deliberately not part of the expedition save schema.
 
 ## Simulation and progression
 
@@ -170,6 +209,14 @@ the game image, and validates finite coordinates, counts, kinds, generations and
 All validation happens before changing the running game. The atomic write API replaces a save
 only after writing its replacement.
 
+The optional showcase owns explicit generational handles, not an inferred region of the world.
+Resizing removes only those entities, collects queued inputs/cargo into five resource counters
+and reuses them on growth. Finite feed stores fund actual recipes; ticks never replenish them.
+Before saving, escrow is deposited into a real store. After loading, runtime showcase ownership
+is forgotten: restored machines remain normal saved structures, and a later showcase creates
+a separately owned fixture. The showcase's rendered tower is a visual landmark rather than a
+mission-completing entity. The original expedition progression is unchanged.
+
 Restoration stops/drains world workers, clears live runtime pools, temporarily occupies every
 existing or saved entity slot, installs saved records at their original indices, then returns
 holes to the freelist. This preserves slot+generation handles regardless of freelist order.
@@ -182,8 +229,14 @@ checksum detects accidental damage rather than authenticating a save.
 
 ## Diagnostics and scaling boundaries
 
-The HUD exposes frame/simulation/mesh/render/upload CPU times, active entities, storage lengths,
-loaded chunks, pending jobs, triangles and draw calls. Benchmark samples are recorded only in
+The F1 panel exposes frame/simulation/mesh/render/UI CPU times, active entities, storage lengths,
+loaded chunks, pending jobs, triangles and draw calls. Its frame ring retains 240 samples;
+percentiles and expensive live-collection counters refresh at 4 Hz. Pool reuse history is also
+bounded to 240 samples. Simulation substeps sum the actual power/production/transport/robot
+CPU intervals. UI build and submission are counted once, independently of simulation.
+The panel emits action pulses; the application applies mutations after UI construction, so
+iterating UI does not mutate the world. Mouse capture prevents mining or building through it.
+Benchmark samples are recorded only in
 benchmark mode and capped at 16,384 entries. CPU timers surrounding graphics calls do not measure
 GPU shader execution time.
 

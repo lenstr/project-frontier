@@ -1,0 +1,29 @@
+showcase load=32 active=156 robots=5 crafted=22 tick_ms mean=0.007006666666666625 p50=0.001 p95=0.003 p99=0.144 max=0.151 paths=25 failed=7 peak_route_backlog=1
+goose stack stats: worker 0: 1 data stacks, 1 regions (reserving 2 GB each); budget 32 TB for 16376, main program 24, a worker 1, thread cap 16352
+goose stack stats: worker 1: 1 data stacks, 1 regions (reserving 2 GB each); budget 32 TB for 16376, main program 24, a worker 1, thread cap 16352
+showcase load=512 active=636 robots=101 crafted=406 tick_ms mean=0.22716333333333324 p50=0.188 p95=0.292 p99=1.368 max=2.141 paths=1200 failed=5 peak_route_backlog=96
+goose stack stats: worker 2: 1 data stacks, 1 regions (reserving 2 GB each); budget 32 TB for 16376, main program 24, a worker 1, thread cap 16352
+goose stack stats: worker 3: 1 data stacks, 1 regions (reserving 2 GB each); budget 32 TB for 16376, main program 24, a worker 1, thread cap 16352
+showcase load=2000 active=2124 robots=398 crafted=1600 tick_ms mean=0.410625 p50=0.184 p95=0.259 p99=0.779 max=32.907 paths=1200 failed=9 peak_route_backlog=395
+showcase reuse: PASS rounds=6 total_ms=34.222 entity_slots=2124 inventory_cells=1696 queue_cells=645 edge_cells=1998 packet_slots=1120
+goose stack stats: worker 4: 1 data stacks, 1 regions (reserving 2 GB each); budget 32 TB for 16376, main program 24, a worker 1, thread cap 16352
+goose stack stats: worker 5: 1 data stacks, 1 regions (reserving 2 GB each); budget 32 TB for 16376, main program 24, a worker 1, thread cap 16352
+goose stack stats: main: 6 data stacks, 24 regions (reserving 2 GB each); budget 32 TB for 16376, main program 24, a worker 1, thread cap 16352
+        3.29 real         2.70 user         0.01 sys
+             2506752  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+                 342  page reclaims
+                   1  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+                   0  voluntary context switches
+                 699  involuntary context switches
+         68370880990  instructions retired
+          9883418741  cycles elapsed
+             2343728  peak memory footprint

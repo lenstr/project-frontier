@@ -74,7 +74,15 @@ fn main() {
         }
         assert(world::loaded == 25 && world::pending == 0);
         scene::sync(81);
-        assert(scene::mesh_count == 25);
+        var detail_meshes: i64 = 0;
+        for mesh in scene::cached {
+            if mesh.count > 0 {
+                detail_meshes++;
+            }
+        }
+        assert(detail_meshes == 25);
+        let grass_meshes: i64 = if scene::grass_mesh.count > 0 { 1 } else { 0 };
+        assert(scene::mesh_count == detail_meshes + grass_meshes);
         peak_terrain_vertices = max(peak_terrain_vertices, scene::terrain_vertices);
         scene::burst(sim::player + float3 { 0.0, 1.0, 0.0 }, scene::CYAN);
         for frame in FRAMES_PER_ROUND {

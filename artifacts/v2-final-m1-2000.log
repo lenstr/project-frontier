@@ -1,0 +1,49 @@
+{
+  "synchronous_gpu_completion": true,
+  "resolution": [1920,1080],
+  "frames": 1189,
+  "average_fps": 44.61466307888232,
+  "frame_ms_p50": 21.398999961093068,
+  "frame_ms_p95": 24.824999971315265,
+  "frame_ms_p99": 46.60400003194809,
+  "simulation_ms_p95": 1.042,
+  "render_cpu_ms_p95": 15.575000084936619,
+  "mesh_cpu_ms_p95": 0.00400003045797348,
+  "ui_cpu_ms_p95": 1.3349999208003283,
+  "gpu_completion_wait_ms_p95": 7.693000137805939,
+  "entity_slots": 2124,
+  "active_entities": 2124,
+  "chunk_slots": 169,
+  "generated_chunks": 169,
+  "generation_cpu_total_ms": 6.320000000000002,
+  "queue_calls_total_ms": 0.20700000000000016,
+  "quality_radius": 6,
+  "horizon_meshes": 4,
+  "horizon_triangles": 131662,
+  "submitted_triangles": 1285362,
+  "draw_calls": 349,
+  "dynamic_gpu_capacity_bytes": 90734160,
+  "showcase_load": 2000,
+  "developer_panel_mode": 1,
+  "shadows": true
+}
+
+FRONTIER rendered 1200 frames; 2124 entities; 169 chunks; triangles=1285362 screenshot=../../v2-final-m1-2000.png
+       30.33 real        16.85 user         9.10 sys
+           323747840  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+             3584520  page reclaims
+                  22  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+                   0  voluntary context switches
+               26176  involuntary context switches
+        216077747755  instructions retired
+         63510144691  cycles elapsed
+           681428672  peak memory footprint

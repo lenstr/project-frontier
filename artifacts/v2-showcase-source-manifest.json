@@ -1,0 +1,21 @@
+{
+  "compiler_sha256": "1a95a810fd78c4938648d1c32d4c1a16331e97aa3962515a6aad5e5b478d157c",
+  "native_compiler_sha256": "5b1ddb7e9c11b87a034fc88b212e8ac243cfe2b4db696d767aa44c79595fc09a",
+  "executable_sha256": "9760e29d919ad3ef61b511544fa6199c1362d8d3bcb4bdae9679577fd84c8741",
+  "source_combined_sha256": "4d2a1b2ac83c02994ce662c460e06f671a18b218e66d2bcd9d11471db43322e7",
+  "source_sha256": {
+    ".tools/goose-v2026.3-macos-arm64/stdlib/math.goose": "7e8d7d8f2975420eeac0a6a7e5c0f8d5263768eef8c5c524e0e0b1bd691318c8",
+    ".tools/goose-v2026.3-macos-arm64/stdlib/os.goose": "6f3da4822c89d132468c0db3b25bb14ef0ed1532c082c6374577b0d70638dbc6",
+    ".tools/goose-v2026.3-macos-arm64/stdlib/std.goose": "58a6699a5ea70174bcd144d6ca15762b8fc2b85ca280562a1610c6903fe2901b",
+    ".tools/goose-v2026.3-macos-arm64/stdlib/vec.goose": "2cac168c72047834433bfb419734c38455c9429ea045b1273898031c53faa82e",
+    "src/entities.goose": "3cc602d8d740d0aee7c4d4475da2cd4625b807d79a24a342f6c6e670be19b308",
+    "src/navigation.goose": "3daa3d2da353ca2391326c52a9f9d6c2d280aa20a38bc4d912c8fa5e768c5612",
+    "src/showcase.goose": "b40bf6776c5646dda6eb4c31e301424ae7434d90ef5f81d33a8097aebab15641",
+    "src/sim.goose": "a9e4570ffb93f5dc3076d345893bc5103b4f38c2f870f151b5c06f03584c1587",
+    "src/telemetry.goose": "34d160f14e96f2ccda2c933eefb5413638a0f1b8baaa3f32c30c70bc5f34792b",
+    "src/types.goose": "7d9ba5c76712add981dbd44b9f1e225c99738a7b2f69ae29c1875b94cf2525c3",
+    "src/world.goose": "ea4bf33a058cf860361b2e49b51d815fd1a87b15573513b6556300b0f9a86c84",
+    "tests/showcase_benchmark.goose": "185a2db7cc6d17aa25357b18919db3d7bfd41ea8bc3994b08423dd883f3bc6b7"
+  },
+  "build_command": ".tools/goose-v2026.3-macos-arm64/goose build tests/showcase_benchmark.goose -o build/v2-showcase-benchmark -O2 --stacks -D GS_STACK_STATS=1"
+}

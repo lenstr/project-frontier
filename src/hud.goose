@@ -8,6 +8,7 @@ import .entities;
 import .world;
 import .sim;
 import .render;
+import .free_flight;
 
 let ROBOTO: const u8[:] = embed_file("../assets/Roboto-Regular.ttf");
 let NAMES: const u8[:][9] = [
@@ -24,6 +25,9 @@ var build_menu = false;
 var help = false;
 var paused = false;
 var debug = false;
+var developer_mode: i64 = 0;
+var developer_requested = false;
+var flight_requested = false;
 var chosen: i64 = 0;
 var clicked_kind: i64 = -1;
 var request_save = false;
@@ -86,7 +90,7 @@ fn wrap(t: const u8[:], w: f32) -> u8[][>..] {
 }
 
 fn hint(x: f32, y: f32, key: const u8[:], label: const u8[:]) {
-    let kw: f32 = if key.len > 2 { 32.0 } else { 22.0 };
+    let kw: f32 = if key.len > 4 { 50.0 } else if key.len > 2 { 38.0 } else { 22.0 };
     ui::fill_rect(context, rect(x, y, kw, 22.0), 3.0, ui::Color { 242, 234, 216, 238 });
     text(x + 4.0, y, kw, key, ui::Color { 27, 35, 64, 255 });
     text(x + kw + 6.0, y, 140.0, label, IVORY);
@@ -203,6 +207,8 @@ fn begin_frame() {
     request_load = false;
     request_quit = false;
     mouse_over = false;
+    developer_requested = false;
+    flight_requested = false;
 }
 
 fn draw_objective() {
@@ -229,17 +235,18 @@ fn draw_objective() {
 }
 
 fn draw_clock_and_power() {
-    panel(width - 256.0, 16.0, 240.0, 78.0);
+    let right = if developer_mode == 1 { width - 466.0 } else { width };
+    panel(right - 256.0, 16.0, 240.0, 78.0);
     let cycle = ((sim::day * 24.0 + 6.0) % 24.0) as! i64;
     let clock_text = str(
         "SOL 01   ", cycle, ":",
         if (sim::day * 1440.0) as! i64 % 60 < 10 { "0" } else { "" },
         (sim::day * 1440.0) as! i64 % 60
     );
-    text(width - 242.0, 25.0, 220.0, clock_text, MUTED);
+    text(right - 242.0, 25.0, 220.0, clock_text, MUTED);
     let power_text = str("POWER  ", sim::supply as! i64, " / ", sim::demand as! i64, " kW");
-    text(width - 242.0, 48.0, 220.0, power_text, if sim::demand > sim::supply { RED } else { CYAN });
-    bar(width - 242.0, 77.0, 212.0, sim::supply / max(1.0, sim::demand), CYAN);
+    text(right - 242.0, 48.0, 220.0, power_text, if sim::demand > sim::supply { RED } else { CYAN });
+    bar(right - 242.0, 77.0, 212.0, sim::supply / max(1.0, sim::demand), CYAN);
 }
 
 fn draw_cargo() {
@@ -286,6 +293,19 @@ fn draw_hints(hx: f32) {
     }
 }
 
+fn draw_flight_controls(hx: f32) {
+    panel(hx, height - 128.0, 552.0, 112.0);
+    let altitude = max(0.0, flight::eye.y - world::height(flight::eye.x, flight::eye.z));
+    text(hx + 12.0, height - 122.0, 530.0,
+        str("SURVEY FLIGHT   ", altitude as! i64, " m above ground   /   ", flight::speed as! i64, " m/s"), CYAN);
+    hint(hx + 12.0, height - 90.0, "WASD", "Move");
+    hint(hx + 190.0, height - 90.0, "Q/E", "Altitude");
+    hint(hx + 370.0, height - 90.0, "Shift", "Boost ×4");
+    hint(hx + 12.0, height - 58.0, "RMB", "Look");
+    hint(hx + 190.0, height - 58.0, "Wheel", "Speed");
+    hint(hx + 370.0, height - 58.0, "Home", "Overview");
+}
+
 fn draw_construction_cost() {
     panel((width - 420.0) / 2.0, height - 168.0, 420.0, 58.0);
     let title = str("CONSTRUCT / ", machine_name(chosen));
@@ -323,13 +343,14 @@ fn draw_inspector(selected: ecs::Handle, cx: f32, cy: f32) {
 }
 
 fn draw_message() {
+    let right = if developer_mode == 1 { width - 466.0 } else { width };
     let rows = wrap(sim::message, 292.0);
     let h: f32 = rows.len * 22.0 + 22.0;
-    panel(width - 336.0, 110.0, 320.0, h);
-    ui::fill_rect(context, rect(width - 336.0, 116.0, 3.0, h - 12.0), 1.0, ORANGE);
+    panel(right - 336.0, 110.0, 320.0, h);
+    ui::fill_rect(context, rect(right - 336.0, 116.0, 3.0, h - 12.0), 1.0, ORANGE);
     var row: i64 = 0;
     for line in rows {
-        text(width - 322.0, 121.0 + row * 22.0, 292.0, line, IVORY);
+        text(right - 322.0, 121.0 + row * 22.0, 292.0, line, IVORY);
         row++;
     }
 }
@@ -353,7 +374,7 @@ fn draw_field_guide() {
         "Robots carry output automatically. E collects it. F deposits cargo.",
         "Assembler makes Circuits. Beacon costs 20 Alloy, 10 Glacite, 8 Circuits.",
         "Connect sufficient power and charge the beacon to finish the mission.",
-        "F5 save. F9 load. F12 screenshot. F1 diagnostics. Tab closes guide."
+        "F5 save. F9 load. F1 developer. G survey flight. Tab closes guide."
     ];
     for i in 12 {
         text(x + 24.0, y + 56.0 + i * 26.0, 580.0, lines[i], if i == 0 { CYAN } else { IVORY });
@@ -425,10 +446,15 @@ fn draw_completion() {
 }
 
 fn draw_location() {
+    if developer_mode == 1 {
+        return;
+    }
     panel(width - 244.0, height - 52.0, 228.0, 36.0);
-    let biome = world::biome(sim::player.x, sim::player.z);
+    let position = if flight::enabled { flight::eye } else { sim::player };
+    let biome = world::biome(position.x, position.z);
     let biome_name = if biome == 0 { "Meadow" } else if biome == 1 { "Mesas" } else { "Fungal" };
-    let location = str(sim::player.x as! i64, " / ", sim::player.z as! i64, "    ", biome_name);
+    let location = str(if flight::enabled { "CAM " } else { "XZ " },
+        position.x as! i64, " / ", position.z as! i64, "   ", biome_name);
     text(width - 230.0, height - 46.0, 215.0, location, MUTED);
 }
 
@@ -469,9 +495,13 @@ fn draw(selected: ecs::Handle, link_source: ecs::Handle, ground: float3) {
         draw_objective();
         draw_clock_and_power();
         draw_cargo();
-        let hx = (width - 552.0) / 2.0;
-        draw_hotbar(hx);
-        draw_hints(hx);
+        let hx = if developer_mode == 1 { max(248.0, (width - 1018.0) / 2.0) } else { (width - 552.0) / 2.0 };
+        if flight::enabled {
+            draw_flight_controls(hx);
+        } else {
+            draw_hotbar(hx);
+            draw_hints(hx);
+        }
         if chosen != 0 {
             draw_construction_cost();
         }
@@ -480,7 +510,9 @@ fn draw(selected: ecs::Handle, link_source: ecs::Handle, ground: float3) {
         let cy = p.y / scale;
         let cursor_color = if ecs::valid(selected) { ORANGE } else { IVORY };
         ui::stroke_circle(context, rect(cx - 6.0, cy - 6.0, 12.0, 12.0), 1.0, cursor_color);
-        if ecs::valid(selected) && !build_menu && !paused {
+        if ecs::valid(selected) && !build_menu && !paused && !flight::enabled
+            && (developer_mode != 1 || cx < width - 480.0)
+        {
             draw_inspector(selected, cx, cy);
         }
         if ecs::valid(link_source) {
@@ -500,6 +532,16 @@ fn draw(selected: ecs::Handle, link_source: ecs::Handle, ground: float3) {
             draw_completion();
         }
         draw_location();
+        if developer_mode == 0 {
+            if button(width - 128.0, height - 88.0, 112.0, 28.0, "F1 Developer") {
+                developer_requested = true;
+            }
+            if button(width - 128.0, height - 122.0, 112.0, 28.0,
+                if flight::enabled { "G Return" } else { "G Free flight" })
+            {
+                flight_requested = true;
+            }
+        }
     }
     ui::end(context);
     if debug {

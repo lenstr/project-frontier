@@ -13,10 +13,16 @@ import src.hud;
 import src.persistence;
 import src.sound;
 import src.playtest;
+import src.dev_panel;
+import src.telemetry;
+import src.horizon;
+import src.showcase;
+import src.free_flight;
+import src.flight_playtest;
 
-var yaw: f32 = 0.65;
-var pitch: f32 = 0.56;
-var distance: f32 = 9.0;
+var yaw: f32 = 0.873;
+var pitch: f32 = 0.24;
+var distance: f32 = 12.0;
 var eye = float3 { 10.0, 16.0, 15.0 };
 var camera_target = float3 { 0.0, 3.0, 0.0 };
 var velocity = float3_0;
@@ -26,16 +32,23 @@ var selected: ecs::Handle;
 var link_source: ecs::Handle;
 var ground = float3_0;
 var mine_cooldown: f32 = 0.0;
-var radius: i64 = 3;
+var radius: i64 = 6;
 var shadows = true;
 var frame_limit: i64 = -1;
 var demo = false;
+var colony_demo = false;
+var initial_load: i64 = 512;
+var start_position = false;
+var start_x: f32 = 0.0;
+var start_z: f32 = 0.0;
 var benchmark = false;
 var offscreen = false;
 var playtest = false;
+var flight_test = false;
 var victory = false;
 var hero = false;
 var automated = false;
+var start_flight = false;
 var rapid_stream = false;
 var stream_timer: f32 = 0.0;
 var render_frames: i64 = 0;
@@ -50,6 +63,8 @@ var frame_times: f64[>..] = [];
 var sim_times: f64[>..] = [];
 var draw_times: f64[>..] = [];
 var mesh_times: f64[>..] = [];
+var ui_times: f64[>..] = [];
+var gpu_wait_times: f64[>..] = [];
 
 fn squared(a: float3, b: float3) -> f32 {
     let d = a - b;
@@ -61,27 +76,35 @@ fn position(x: f32, z: f32) -> float3 {
 }
 
 fn camera(dt: f32) {
-    if gfx::mouse_down(gfx::MOUSE_RIGHT) && !hud::build_menu && !hud::help && !hud::paused {
+    if flight::enabled {
+        survey_camera(dt);
+        return;
+    }
+    if gfx::mouse_down(gfx::MOUSE_RIGHT) && !hud::build_menu && !hud::help && !hud::paused
+        && !dev::wants_mouse()
+    {
         gfx::set_mouse_relative(true);
         let d = gfx::mouse_delta();
-        yaw -= d.x * 0.003;
-        pitch += d.y * 0.003;
+        yaw -= d.x * 0.003 * dev::settings.camera_speed;
+        pitch += d.y * 0.003 * dev::settings.camera_speed;
     } else if gfx::mouse_relative() {
         gfx::set_mouse_relative(false);
     }
-    if gfx::key_down("Left") {
+    if gfx::key_down("Left") && !dev::wants_keyboard() {
         yaw += dt * 1.7;
     }
-    if gfx::key_down("Right") {
+    if gfx::key_down("Right") && !dev::wants_keyboard() {
         yaw -= dt * 1.7;
     }
-    if gfx::key_down("Up") {
+    if gfx::key_down("Up") && !dev::wants_keyboard() {
         pitch -= dt;
     }
-    if gfx::key_down("Down") {
+    if gfx::key_down("Down") && !dev::wants_keyboard() {
         pitch += dt;
     }
-    distance = clamp(distance - gfx::mouse_wheel() * 1.5, 4.0, 28.0);
+    if !dev::wants_mouse() {
+        distance = clamp(distance - gfx::mouse_wheel() * 1.5, 4.0, 28.0);
+    }
     pitch = clamp(pitch, if hero && victory { 0.06 } else { 0.17 }, 1.22);
     let build = hud::chosen != 0;
     let d = if hero && victory { 30.0 } else if build { max(16.0, distance) } else { distance };
@@ -102,6 +125,88 @@ fn camera(dt: f32) {
         }
     }
     eye += (desired - eye) * ft::splat(1.0 - exp(-dt * 14.0));
+}
+
+fn survey_camera(dt: f32) {
+    var input = flight::Input { .. };
+    let available = !hud::paused && !hud::help && !dev::wants_keyboard();
+    if available {
+        input.forward = (if gfx::key_down("W") { 1.0 } else { 0.0 })
+            - (if gfx::key_down("S") { 1.0 } else { 0.0 });
+        input.right = (if gfx::key_down("D") { 1.0 } else { 0.0 })
+            - (if gfx::key_down("A") { 1.0 } else { 0.0 });
+        input.lift = (if gfx::key_down("E") || gfx::key_down("Space") { 1.0 } else { 0.0 })
+            - (if gfx::key_down("Q") || gfx::key_down("Left Ctrl") { 1.0 } else { 0.0 });
+        input.boost = gfx::key_down("Left Shift");
+        if !dev::wants_mouse() {
+            input.wheel = gfx::mouse_wheel();
+        }
+        if gfx::mouse_down(gfx::MOUSE_RIGHT) && !dev::wants_mouse() {
+            gfx::set_mouse_relative(true);
+            let delta = gfx::mouse_delta();
+            input.yaw_delta = -delta.x * 0.003 * dev::settings.camera_speed;
+            input.pitch_delta = delta.y * 0.003 * dev::settings.camera_speed;
+        } else if gfx::mouse_relative() {
+            gfx::set_mouse_relative(false);
+        }
+        input.yaw_delta += dt * 1.7 * ((if gfx::key_down("Left") { 1.0 } else { 0.0 })
+            - (if gfx::key_down("Right") { 1.0 } else { 0.0 }));
+        input.pitch_delta += dt * ((if gfx::key_down("Down") { 1.0 } else { 0.0 })
+            - (if gfx::key_down("Up") { 1.0 } else { 0.0 }));
+    } else if gfx::mouse_relative() {
+        gfx::set_mouse_relative(false);
+    }
+    flight::speed = dev::settings.flight_speed;
+    flight::update(input, if available { dt } else { 0.0 });
+    flight::eye.y = clamp(flight::eye.y, world::height(flight::eye.x, flight::eye.z) + 3.0, 1800.0);
+    dev::settings.flight_speed = flight::speed;
+    eye = flight::eye;
+    camera_target = flight::target();
+}
+
+fn toggle_flight() {
+    hud::chosen = 0;
+    hud::build_menu = false;
+    hud::help = false;
+    link_source = ecs::Handle {};
+    velocity = float3_0;
+    vertical = 0.0;
+    if flight::enabled {
+        flight::leave();
+        camera_target = sim::player + float3 { 0.0, 1.2, 0.0 };
+        eye = camera_target + float3 {
+            sin(yaw) * cos(pitch) * distance,
+            sin(pitch) * distance,
+            cos(yaw) * cos(pitch) * distance,
+        };
+        sim::say("Returned to your suit. G opens free flight.");
+    } else {
+        flight::enter(sim::player, yaw);
+        eye = flight::eye;
+        camera_target = flight::target();
+        sim::say("Survey flight: WASD move, Q/E altitude, Shift boost, wheel speed, Home overview, G return.");
+    }
+    if gfx::mouse_relative() {
+        gfx::set_mouse_relative(false);
+    }
+}
+
+fn reframe_flight() {
+    if !flight::enabled {
+        toggle_flight();
+    }
+    let anchor = if ecs::valid(sim::base) { ecs::entities[sim::base.slot].pos } else { sim::player };
+    flight::enter(anchor, 0.873);
+    eye = flight::eye;
+    camera_target = flight::target();
+}
+
+fn streaming_focus() -> float3 {
+    if !flight::enabled {
+        return sim::player;
+    }
+    let focus = flight::stream_focus(world::height(eye.x, eye.z));
+    position(focus.x, focus.z)
 }
 
 fn blocked(p: float3) -> bool {
@@ -180,10 +285,11 @@ fn aim() {
     let ray = normalize(
         forward + right * ft::splat(mx * factor * aspect) + up * ft::splat(my * factor)
     );
-    var depth: f32 = 80.0;
+    var depth: f32 = if flight::enabled { 1600.0 } else { 80.0 };
     has_ground = false;
-    for i in 200 {
-        let t: f32 = i * 0.4;
+    for i in if flight::enabled { 400 } else { 200 } {
+        let step: f32 = if flight::enabled { 4.0 } else { 0.4 };
+        let t: f32 = i * step;
         let p = eye + ray * ft::splat(t);
         if p.y <= world::height(p.x, p.z) {
             ground = position(p.x, p.z);
@@ -213,6 +319,7 @@ fn aim() {
 }
 
 fn save_game() {
+    showcase::flush_escrow();
     if save::write(save_path) {
         sim::say("Expedition saved.");
     } else {
@@ -242,6 +349,9 @@ fn default_save() {
 
 fn load_game() {
     if save::load(save_path) {
+        flight::leave();
+        showcase::forget();
+        dev::settings.load = 0;
         sim::say("Expedition restored.");
         selected = ecs::Handle {};
         link_source = ecs::Handle {};
@@ -272,13 +382,19 @@ fn deposit() {
 // Keyboard shortcuts that work in every mode, including menus and pause.
 fn hotkeys() {
     if gfx::key_pressed("F1") {
-        hud::debug = !hud::debug;
+        dev::toggle();
+    }
+    if gfx::key_pressed("G") || gfx::key_pressed("F10") || hud::flight_requested {
+        toggle_flight();
+    }
+    if gfx::key_pressed("Home") && flight::enabled {
+        reframe_flight();
     }
     if gfx::key_pressed("Tab") {
         hud::help = !hud::help;
         hud::paused = false;
     }
-    if gfx::key_pressed("B") {
+    if gfx::key_pressed("B") && !flight::enabled {
         hud::build_menu = !hud::build_menu;
         hud::help = false;
     }
@@ -295,7 +411,7 @@ fn hotkeys() {
     }
     let keys: const u8[:][9] = ["1", "2", "3", "4", "5", "6", "7", "8", "9"];
     for i in 9 {
-        if gfx::key_pressed(keys[i]) {
+        if gfx::key_pressed(keys[i]) && !flight::enabled {
             hud::chosen = hud::KINDS[i];
             hud::build_menu = false;
         }
@@ -308,12 +424,15 @@ fn hotkeys() {
     }
     if gfx::key_pressed("O") {
         shadows = !shadows;
+        dev::settings.shadows = shadows;
     }
     if gfx::key_pressed("=") {
-        radius = min(4, radius + 1);
+        radius = min(world::MAX_RADIUS, radius + 1);
+        dev::settings.detail_radius = radius;
     }
     if gfx::key_pressed("-") {
         radius = max(2, radius - 1);
+        dev::settings.detail_radius = radius;
     }
     if gfx::key_pressed("F2") {
         sim::stress_spawn(1000);
@@ -323,6 +442,7 @@ fn hotkeys() {
     }
     if gfx::key_pressed("F4") {
         rapid_stream = !rapid_stream;
+        dev::actions.rapid_stream = rapid_stream;
         sim::say(if rapid_stream { "Rapid streaming enabled." } else { "Rapid streaming disabled." });
     }
     if gfx::key_pressed("F6") {
@@ -333,6 +453,9 @@ fn hotkeys() {
     }
     if gfx::key_pressed("F8") {
         sim::day = (sim::day + 0.25) % 1.0;
+    }
+    if dev::wants_keyboard() || flight::enabled {
+        return;
     }
     if gfx::key_pressed("C") {
         sim::manual_smelt();
@@ -408,7 +531,12 @@ fn use_terrain_tool() {
 
 fn controls(dt: f32) {
     hotkeys();
-    if hud::paused || hud::help || hud::build_menu || hud::mouse_over {
+    if flight::enabled {
+        return;
+    }
+    if hud::paused || hud::help || hud::build_menu || hud::mouse_over
+        || dev::wants_mouse() || dev::wants_keyboard()
+    {
         return;
     }
     movement(dt);
@@ -459,6 +587,8 @@ fn report() {
     sort(sim_times) { a, b => a < b };
     sort(draw_times) { a, b => a < b };
     sort(mesh_times) { a, b => a < b };
+    sort(ui_times) { a, b => a < b };
+    sort(gpu_wait_times) { a, b => a < b };
     let screen = gfx::screen_size();
     let result = str(
         "{\n  \"synchronous_gpu_completion\": true,\n  \"resolution\": [", screen.x, ",", screen.y,
@@ -470,6 +600,8 @@ fn report() {
         ",\n  \"simulation_ms_p95\": ", percentile(sim_times, 0.95),
         ",\n  \"render_cpu_ms_p95\": ", percentile(draw_times, 0.95),
         ",\n  \"mesh_cpu_ms_p95\": ", percentile(mesh_times, 0.95),
+        ",\n  \"ui_cpu_ms_p95\": ", percentile(ui_times, 0.95),
+        ",\n  \"gpu_completion_wait_ms_p95\": ", percentile(gpu_wait_times, 0.95),
         ",\n  \"entity_slots\": ", ecs::entities.len,
         ",\n  \"active_entities\": ", ecs::alive_count,
         ",\n  \"chunk_slots\": ", world::chunks.len,
@@ -477,6 +609,13 @@ fn report() {
         ",\n  \"generation_cpu_total_ms\": ", world::generation_total_ms,
         ",\n  \"queue_calls_total_ms\": ", world::transfer_ms,
         ",\n  \"quality_radius\": ", radius,
+        ",\n  \"horizon_meshes\": ", horizon::mesh_count,
+        ",\n  \"horizon_triangles\": ", horizon::triangles,
+        ",\n  \"submitted_triangles\": ", render::triangles,
+        ",\n  \"draw_calls\": ", render::draw_calls,
+        ",\n  \"dynamic_gpu_capacity_bytes\": ", render::dynamic_capacity,
+        ",\n  \"showcase_load\": ", showcase::load,
+        ",\n  \"developer_panel_mode\": ", dev::mode,
         ",\n  \"shadows\": ", shadows,
         "\n}\n"
     );
@@ -507,13 +646,18 @@ fn parse_options() -> LaunchOptions {
                 "Project Frontier / Goose v2026.3\n",
                 "Usage: ./run.sh [--resume] [--save PATH] [--seed N] [--quality low|medium|high]\n",
                 "       ./run.sh --demo [--hero] [--victory] [--time 0..1]\n",
+                "       ./run.sh --showcase [--load 32..2000] [--devtools] [--dev-tab 0..4]\n",
+                "       ./run.sh --showcase --flight   # Detached strategic overview\n",
                 "       ./run.sh --offscreen --frames N [--benchmark] [--screenshot PATH]\n",
-                "       ./run.sh --stress N | --playtest\n",
+                "       Add --rapid-stream for repeatable automatic chunk travel.\n",
+                "       ./run.sh --stress N | --playtest | --flight-test\n",
                 "WASD walk, Shift sprint, Space jump, right-drag orbit, wheel zoom.\n",
+                "G/F10 free flight; WASD move, Q/E altitude, Shift boost, wheel speed, Home overview.\n",
                 "Hold left click mine/dig; Shift+click fills terrain. B builds; 1-8 blueprints, 9 tool.\n",
                 "Q source then Q destination connects conveyors. E collect, F deposit, R reclaim.\n",
                 "C refine Ferrite, V craft Circuits. F5 save, F9 load, Tab field guide, Esc pause.\n",
-                "F1 diagnostics; F2/F3 +/-1000; F4 rapid stream; F6 robot; F7 networks; F8 time.\n",
+                "F1 developer panel: full / compact / closed; F2/F3 +/-1000; F4 rapid stream.\n",
+                "F6 robot; F7 networks; F8 time. --wireframe and --position X Z are inspection tools.\n",
                 "F12 screenshot; +/- streaming quality; O shadows. --mute disables sound."
             );
             options.help = true;
@@ -529,6 +673,49 @@ fn parse_options() -> LaunchOptions {
         } else if a == "--demo" {
             demo = true;
         }
+        if a == "--showcase" {
+            colony_demo = true;
+        }
+        if a == "--flight" {
+            start_flight = true;
+        }
+        if a == "--rapid-stream" {
+            rapid_stream = true;
+            dev::actions.rapid_stream = true;
+        }
+        if a == "--load" && i + 1 < argv.len {
+            let n, ok = parse_int(argv[i + 1]);
+            if ok {
+                initial_load = clamp(n, 32, 2000);
+            }
+            i++;
+        }
+        if a == "--devtools" {
+            dev::mode = 1;
+            dev::open = true;
+        }
+        if a == "--dev-tab" && i + 1 < argv.len {
+            let value, ok = parse_int(argv[i + 1]);
+            if ok {
+                dev::tab = clamp(value, 0, 4);
+                dev::mode = 1;
+                dev::open = true;
+            }
+            i++;
+        }
+        if a == "--wireframe" {
+            dev::settings.show_wireframe = true;
+        }
+        if a == "--position" && i + 2 < argv.len {
+            let x, x_ok = parse_flt(argv[i + 1]);
+            let z, z_ok = parse_flt(argv[i + 2]);
+            if x_ok && z_ok {
+                start_position = true;
+                start_x = x as f32;
+                start_z = z as f32;
+            }
+            i += 2;
+        }
         if a == "--benchmark" {
             benchmark = true;
         }
@@ -541,7 +728,8 @@ fn parse_options() -> LaunchOptions {
             demo = true;
         }
         if a == "--debug-overlay" {
-            hud::debug = true;
+            dev::mode = 1;
+            dev::open = true;
         }
         if a == "--offscreen" {
             offscreen = true;
@@ -553,6 +741,12 @@ fn parse_options() -> LaunchOptions {
             frame_limit = 900;
             save_path = "build/input-test.sav";
             options.custom_save = true;
+        }
+        if a == "--flight-test" {
+            flight_test = true;
+            offscreen = true;
+            automated = true;
+            frame_limit = 240;
         }
         if a == "--resume" {
             options.resume = true;
@@ -572,7 +766,7 @@ fn parse_options() -> LaunchOptions {
         }
         if a == "--quality" && i + 1 < argv.len {
             let q = argv[i + 1];
-            radius = if q == "low" { 2 } else if q == "high" { 4 } else { 3 };
+            radius = if q == "low" { 3 } else if q == "high" { 8 } else { 6 };
             shadows = q != "low";
             i++;
         }
@@ -639,27 +833,144 @@ fn run_stress(stress: i64) {
 }
 
 // Runs frames until the window closes, the player quits or an automated run ends.
-// Returns the number of rendered frames.
+fn developer_actions() {
+    if dev::actions.toggle_flight {
+        toggle_flight();
+    }
+    if dev::actions.reframe_flight {
+        reframe_flight();
+    }
+    if dev::actions.save {
+        save_game();
+    }
+    if dev::actions.load {
+        load_game();
+    }
+    if dev::actions.spawn_objects > 0 {
+        sim::stress_spawn(dev::actions.spawn_objects);
+    }
+    if dev::actions.destroy_objects > 0 {
+        sim::stress_destroy(dev::actions.destroy_objects);
+    }
+    for i in dev::actions.spawn_robots {
+        sim::spawn_robot(sim::player + float3 { 3.0 + i % 5, 0.0, 3.0 + i / 5 });
+    }
+    if dev::actions.churn_rounds > 0 {
+        let before = ecs::entities.len;
+        let cells_before = ecs::inventories.len + ecs::queues.len + ecs::edges.len;
+        let started = clock();
+        for round in dev::actions.churn_rounds {
+            sim::stress_spawn(1000);
+            sim::stress_destroy(1000);
+        }
+        let elapsed_ms = (clock() - started) * 1000.0;
+        dev::last_churn = dev::ChurnResult {
+            completed: true,
+            elapsed_ms: elapsed_ms,
+            slots_before: before,
+            slots_after: ecs::entities.len,
+            cells_before: cells_before,
+            cells_after: ecs::inventories.len + ecs::queues.len + ecs::edges.len,
+        };
+        sim::say(str("Churn: ", dev::decimal(elapsed_ms, 2), " ms; slots ", before, " -> ", ecs::entities.len));
+        stats::refresh();
+    }
+    let load_changed = showcase::enabled && dev::settings.load != showcase::load;
+    if dev::actions.build_showcase || (load_changed && !gfx::mouse_down(gfx::MOUSE_LEFT)) {
+        showcase::set_load(dev::settings.load);
+        scene::invalidate();
+        sim::say(str("Live colony: ", showcase::load, " entities. Inputs and production queues are real."));
+    }
+    if dev::actions.reset_stats {
+        stats::reset_history();
+    }
+    rapid_stream = dev::actions.rapid_stream;
+    radius = clamp(dev::settings.detail_radius, 2, world::MAX_RADIUS);
+    shadows = dev::settings.shadows;
+    sim::robot_path_budget = dev::settings.robot_budget;
+    scene::vegetation = dev::settings.vegetation;
+    scene::vegetation_center = eye;
+    render::wireframe = dev::settings.show_wireframe;
+    render::fog_clear = dev::settings.fog_start;
+    render::visibility = dev::settings.fog_distance;
+    render::horizon_edge = clamp(dev::settings.fog_distance * 1.28, 1536.0, 2432.0);
+    scene::inspector_target = dev::pinned;
+    scene::detached_view = flight::enabled;
+    scene::view_center = streaming_focus();
+}
+
+fn advance_simulation(dt: f32) -> stats::Frame {
+    var result = stats::Frame { .. };
+    if hud::paused || hud::help {
+        return result;
+    }
+    var remaining: f32 = dt * dev::settings.simulation_speed;
+    if dev::actions.single_step {
+        remaining = 1.0 / 60.0;
+    }
+    while remaining > 0.000001 {
+        let step = min(remaining, 0.05);
+        sim::tick(step);
+        result.simulation_ms += sim::simulation_ms;
+        result.power_ms += sim::power_ms;
+        result.production_ms += sim::production_ms;
+        result.transport_ms += sim::transport_ms;
+        result.robots_ms += sim::robots_ms;
+        remaining -= step;
+    }
+    if dev::settings.lock_time {
+        sim::day = dev::settings.day_phase;
+    } else {
+        dev::settings.day_phase = sim::day;
+    }
+    return result;
+}
+
+// Every sample belongs to the same frame. Presentation waiting is included in
+// total time; the CPU rendering and UI columns exclude the explicit GPU wait.
 fn run_frames() -> i64 {
-    var last = clock();
     var drawn: i64 = 0;
-    while gfx::frame() {
-        let now = clock();
-        let frame_ms = (now - last) * 1000.0;
-        last = now;
+    while true {
+        let frame_started = clock();
+        if !gfx::frame() {
+            break;
+        }
         let dt: f32 = if automated && !benchmark {
             1.0 / 60.0
         } else {
             clamp(gfx::delta_time() as f32, 0.001, 0.05)
         };
+        var sample = stats::Frame { .. };
+        let input_started = clock();
         hud::begin_frame();
+        dev::begin_frame();
         camera(dt);
         aim();
+        let early_input_ms = (clock() - input_started) * 1000.0;
+        let ui_build_started = clock();
+        hud::developer_mode = dev::mode;
+        dev::flight_active = flight::enabled;
+        dev::flight_altitude = eye.y - world::height(eye.x, eye.z);
         hud::draw(selected, link_source, ground);
+        dev::draw(selected);
+        let ui_build_ms = (clock() - ui_build_started) * 1000.0;
+        let controls_started = clock();
+        if hud::developer_requested {
+            dev::toggle();
+        }
         if hud::clicked_kind >= 0 {
             hud::chosen = hud::clicked_kind;
         }
-        controls(dt);
+        if (dev::pick_armed && gfx::mouse_pressed(gfx::MOUSE_LEFT) && !dev::wants_mouse())
+            || (gfx::mouse_pressed(gfx::MOUSE_MIDDLE) && !dev::wants_mouse())
+        {
+            dev::pinned = selected;
+            dev::pick_armed = false;
+        } else {
+            controls(dt);
+        }
+        developer_actions();
+        sample.input_ms = early_input_ms + (clock() - controls_started) * 1000.0;
         if hud::request_quit {
             quit = true;
         }
@@ -667,33 +978,50 @@ fn run_frames() -> i64 {
             stream_timer += dt;
             if stream_timer > 1.0 {
                 stream_timer = 0.0;
-                sim::player.x += 128.0;
-                sim::player.y = world::height(sim::player.x, sim::player.z);
+                if flight::enabled {
+                    flight::eye.x += 128.0;
+                } else {
+                    sim::player.x += 128.0;
+                    sim::player.y = world::height(sim::player.x, sim::player.z);
+                }
             }
         }
-        if !hud::paused && !hud::help {
-            sim::tick(dt);
-        }
-        world::stream(sim::player.x, sim::player.z, radius, 2);
-        let mesh_start = clock();
-        scene::sync(2);
-        hud::mesh_ms = (clock() - mesh_start) * 1000.0;
+        let simulation = advance_simulation(dt);
+        sample.simulation_ms = simulation.simulation_ms;
+        sample.power_ms = simulation.power_ms;
+        sample.production_ms = simulation.production_ms;
+        sample.transport_ms = simulation.transport_ms;
+        sample.robots_ms = simulation.robots_ms;
+        let stream_started = clock();
+        let focus = streaming_focus();
+        world::stream(focus.x, focus.z, radius, 4);
+        sample.stream_ms = (clock() - stream_started) * 1000.0;
+        let mesh_started = clock();
+        scene::sync(dev::settings.mesh_budget);
+        horizon::update(focus, radius * 32.0, render::horizon_edge, 1);
+        sample.mesh_ms = (clock() - mesh_started) * 1000.0;
+        hud::mesh_ms = sample.mesh_ms;
         render::stream_radius = radius * 32.0;
         hud::quality = radius;
-        let draw_start = clock();
-        // HUD commands are built before input is applied, then rendered after 3D.
+        let render_started = clock();
         scene::draw(
-            eye, camera_target, sim::day, sim::elapsed, selected, hud::chosen, ground,
+            eye, camera_target, sim::day, sim::elapsed, selected, if flight::enabled { 0 } else { hud::chosen }, ground,
             sim::can_build(hud::chosen), shadows
         );
+        sample.render_ms = (clock() - render_started) * 1000.0;
+        let ui_started = clock();
+        dev::present();
         hud::present();
-        hud::render_ms = (clock() - draw_start) * 1000.0;
-        // A benchmark frame includes completed GPU work, rather than only
-        // command submission throughput. Normal play keeps GPU pipelining.
+        sample.ui_ms = ui_build_ms + (clock() - ui_started) * 1000.0;
         if benchmark {
+            let wait_started = clock();
             gfx::flush();
+            sample.gpu_wait_ms = (clock() - wait_started) * 1000.0;
         }
-        hud::frame_ms += ((frame_ms as f32) - hud::frame_ms) * 0.08;
+        sample.frame_ms = (clock() - frame_started) * 1000.0;
+        stats::record(sample);
+        hud::render_ms = sample.render_ms;
+        hud::frame_ms += ((sample.frame_ms as f32) - hud::frame_ms) * 0.08;
         hud::fps = 1000.0 / max(0.1, hud::frame_ms);
         if sim::objective_done && !completed_sound {
             sound::success();
@@ -704,24 +1032,26 @@ fn run_frames() -> i64 {
             sim::say("Screenshot saved to artifacts/frontier.png.");
         }
         if benchmark && drawn > 10 && frame_times.len < 16384 {
-            frame_times.push(frame_ms);
-            sim_times.push(sim::simulation_ms);
-            draw_times.push(hud::render_ms);
-            mesh_times.push(hud::mesh_ms);
+            frame_times.push(sample.frame_ms);
+            sim_times.push(sample.simulation_ms);
+            draw_times.push(sample.render_ms);
+            mesh_times.push(sample.mesh_ms);
+            ui_times.push(sample.ui_ms);
+            gpu_wait_times.push(sample.gpu_wait_ms);
         }
         drawn++;
         render_frames = drawn;
         if playtest {
             driver::tick(eye, camera_target);
         }
-        if driver::complete {
-            break;
+        if flight_test {
+            pilot::update();
         }
-        if quit || (frame_limit > 0 && drawn >= frame_limit) {
+        if driver::complete || pilot::complete || quit || (frame_limit > 0 && drawn >= frame_limit) {
             break;
         }
     }
-    drawn
+    return drawn;
 }
 
 fn main() {
@@ -751,6 +1081,11 @@ fn main() {
     }
     scene::init();
     hud::init();
+    dev::init();
+    horizon::init();
+    stats::reset_history();
+    dev::settings.detail_radius = radius;
+    dev::settings.shadows = shadows;
     if !options.mute {
         sound::init();
     }
@@ -759,6 +1094,17 @@ fn main() {
     }
     if demo {
         demo_colony();
+    }
+    if !options.resume && !playtest {
+        sim::day = 0.375;
+    }
+    if colony_demo {
+        dev::settings.load = initial_load;
+        showcase::set_load(initial_load);
+        sim::say("A live industrial district. F1 opens the engine inspector and load controls.");
+    }
+    if start_position {
+        sim::player = position(start_x, start_z);
     }
     if start_day >= 0.0 {
         sim::day = start_day;
@@ -778,13 +1124,39 @@ fn main() {
         pitch = 0.06;
         distance = 30.0;
     }
-    for n in 12 {
-        world::stream(sim::player.x, sim::player.z, radius, 8);
+    if playtest {
+        yaw = 0.65;
+        pitch = 0.56;
+        distance = 9.0;
+        radius = 3;
+        dev::settings.detail_radius = radius;
+        dev::open = false;
+        dev::mode = 0;
+    }
+    if start_flight && !playtest {
+        reframe_flight();
+    }
+    let diameter = radius * 2 + 1;
+    let preload_batches = (diameter * diameter + world::MAX_JOBS - 1) / world::MAX_JOBS + 2;
+    for n in preload_batches {
+        let focus = streaming_focus();
+        world::stream(focus.x, focus.z, radius, 8);
         world::drain();
     }
-    scene::sync(81);
-    eye = sim::player + float3 { 18.0, 20.0, 24.0 };
-    camera_target = sim::player + float3 { 0.0, 1.2, 0.0 };
+    if !flight::enabled {
+        camera_target = sim::player + float3 { 0.0, 1.2, 0.0 };
+        eye = camera_target + float3 {
+            sin(yaw) * cos(pitch) * distance,
+            sin(pitch) * distance,
+            cos(yaw) * cos(pitch) * distance
+        };
+    }
+    scene::vegetation_center = eye;
+    scene::sync(world::MAX_CHUNKS);
+    scene::detached_view = flight::enabled;
+    scene::view_center = streaming_focus();
+    horizon::update(streaming_focus(), radius * 32.0, render::horizon_edge, 4);
+    dev::settings.day_phase = sim::day;
     let drawn = run_frames();
     if automated {
         gfx::screenshot(screenshot_path);
@@ -798,7 +1170,9 @@ fn main() {
         world::loaded, " chunks; triangles=", render::triangles,
         " screenshot=", if automated { screenshot_path } else { "F12" }
     );
+    dev::shutdown();
     hud::shutdown();
+    horizon::shutdown();
     scene::shutdown();
     sound::shutdown();
     gfx::close();

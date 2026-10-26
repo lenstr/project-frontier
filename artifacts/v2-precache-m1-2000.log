@@ -1,0 +1,49 @@
+{
+  "synchronous_gpu_completion": true,
+  "resolution": [1920,1080],
+  "frames": 1789,
+  "average_fps": 25.946439905169385,
+  "frame_ms_p50": 37.456999998539686,
+  "frame_ms_p95": 42.8739998023957,
+  "frame_ms_p99": 64.09600004553795,
+  "simulation_ms_p95": 1.148,
+  "render_cpu_ms_p95": 29.14300002157688,
+  "mesh_cpu_ms_p95": 0.00400003045797348,
+  "ui_cpu_ms_p95": 1.8119998276233673,
+  "gpu_completion_wait_ms_p95": 12.448000023141503,
+  "entity_slots": 2124,
+  "active_entities": 2124,
+  "chunk_slots": 169,
+  "generated_chunks": 169,
+  "generation_cpu_total_ms": 6.423999999999999,
+  "queue_calls_total_ms": 0.5540000000000004,
+  "quality_radius": 6,
+  "horizon_meshes": 4,
+  "horizon_triangles": 131662,
+  "submitted_triangles": 1326276,
+  "draw_calls": 347,
+  "dynamic_gpu_capacity_bytes": 181352880,
+  "showcase_load": 2000,
+  "developer_panel_mode": 1,
+  "shadows": true
+}
+
+FRONTIER rendered 1800 frames; 2124 entities; 169 chunks; triangles=1326276 screenshot=../../v2-mbp14-2000.png
+       72.82 real        37.75 user        24.65 sys
+           465960960  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+            10343388  page reclaims
+                   7  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+                   0  voluntary context switches
+               41144  involuntary context switches
+        464752074158  instructions retired
+        152553731689  cycles elapsed
+           880101080  peak memory footprint

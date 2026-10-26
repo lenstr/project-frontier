@@ -34,6 +34,11 @@ var base: ecs::Handle;
 var supply: f32 = 0.0;
 var demand: f32 = 0.0;
 var simulation_ms: f64 = 0.0;
+var deposit_ms: f64 = 0.0;
+var power_ms: f64 = 0.0;
+var production_ms: f64 = 0.0;
+var transport_ms: f64 = 0.0;
+var robots_ms: f64 = 0.0;
 var crafted: i64 = 0;
 var message: u8[..180];
 var message_time: f32 = 0.0;
@@ -43,6 +48,7 @@ var mine_clock: f32 = 0.0;
 var deposit_cx: i64 = 9223372036854775807;
 var deposit_cz: i64 = 9223372036854775807;
 var path_budget: i64 = 0;
+var robot_path_budget: i64 = 2;
 
 // Exact stamps detect raw ECS edits and restored snapshots as well as normal
 // construction. Component membership changes only when this topology changes.
@@ -101,6 +107,12 @@ fn reset() {
     base = ecs::Handle {};
     supply = 0.0;
     demand = 0.0;
+    simulation_ms = 0.0;
+    deposit_ms = 0.0;
+    power_ms = 0.0;
+    production_ms = 0.0;
+    transport_ms = 0.0;
+    robots_ms = 0.0;
     crafted = 0;
     message = "";
     message_time = 0.0;
@@ -995,27 +1007,56 @@ fn robots(dt: f32) {
 }
 
 fn tick(dt: f32) {
-    let start = clock();
+    let start = clock_ns();
     let step = clamp(dt, 0.0, 0.1);
     elapsed += step;
     day = (day + step / 720.0) % 1.0;
     message_time = max(0.0, message_time - step);
     mine_clock = max(0.0, mine_clock - step);
-    path_budget = 2;
+    path_budget = clamp(robot_path_budget, 0, 16);
+    var section_start = clock_ns();
     stream_deposits(player.x, player.z);
+    var now = clock_ns();
+    deposit_ms = (now - section_start) / 1000000.0;
+    section_start = now;
     update_power();
+    now = clock_ns();
+    power_ms = (now - section_start) / 1000000.0;
+    section_start = now;
     machines(step);
+    now = clock_ns();
+    production_ms = (now - section_start) / 1000000.0;
+    section_start = now;
     transport(step);
+    now = clock_ns();
+    transport_ms = (now - section_start) / 1000000.0;
+    section_start = now;
     robots(step);
-    simulation_ms = (clock() - start) * 1000.0;
+    now = clock_ns();
+    robots_ms = (now - section_start) / 1000000.0;
+    simulation_ms = (now - start) / 1000000.0;
 }
 
 fn stress_spawn(n: i64) {
+    var handles: ecs::Handle[>..] = [];
     for i in max(0, min(n, 10000)) {
         let hash = world::hash(i, ecs::alive_count, seed);
         let x = player.x + ((hash & 1023) / 1023.0 - 0.5) * 55.0;
         let z = player.z + (((hash >> 10) & 1023) / 1023.0 - 0.5) * 55.0;
-        ecs::spawn(STRESS, ground(x, z));
+        handles.push(ecs::spawn(STRESS, ground(x, z)));
+    }
+    // Grow independent slices in interleaved order, so this exercises pool
+    // relocation and coalescing rather than only allocating empty entities.
+    for resource in 5 {
+        for i in handles.len {
+            ecs::add(handles[i], resource, i + resource + 1);
+            if resource < i % 5 {
+                ecs::enqueue(handles[i], resource, i + 1);
+            }
+            if resource < 3 && handles.len > 1 {
+                ecs::link(handles[i], handles[(i + resource + 1) % handles.len]);
+            }
+        }
     }
     say("Stress objects spawned. Watch the entity slots and memory high-water counters.");
 }

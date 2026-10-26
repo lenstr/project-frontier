@@ -1,0 +1,131 @@
+{
+  "machine": "Apple M5 Max, 128 GB",
+  "command": [
+    "./build/frontier",
+    "--showcase",
+    "--load",
+    "32",
+    "--devtools",
+    "--offscreen",
+    "--frames",
+    "3000",
+    "--benchmark",
+    "--mute",
+    "--time",
+    "0.375"
+  ],
+  "source_sha256": {
+    "frontier.goose": "329ea75e1d869a348b79096ca79f26f29bafb9b16528e25335827823e782fd7d",
+    "src/dev_panel.goose": "4f6f9da63d2d4248ee72a8c600be461702b6f10af9139db9a568fede4a979ff6",
+    "src/entities.goose": "3cc602d8d740d0aee7c4d4475da2cd4625b807d79a24a342f6c6e670be19b308",
+    "src/horizon.goose": "4a4e9f23058e9850f9ca0caef51de88bf8759ec564570dac626dd489ee00b277",
+    "src/hud.goose": "e0f9bb2c598ff0060075c901ee706b9d5fbd4e68d176bb777d78762b1f5fa109",
+    "src/navigation.goose": "3daa3d2da353ca2391326c52a9f9d6c2d280aa20a38bc4d912c8fa5e768c5612",
+    "src/persistence.goose": "87971f04ab37a950ada4abd6a9fb2c93d378c21edacd53ed1ce63c098ebeb93d",
+    "src/playtest.goose": "bf1e9f00280b04c151ceacb3225b354ff8653fef63fe60946ac28ebd6b20ffd4",
+    "src/render.goose": "d47821169288f5907d6546cb889852e86b6f4ebaa138a58576d396eae5ef73f4",
+    "src/scene.goose": "457705d9fc99aaac2f2a2609941da4f73a3d776570ae89386eed91c8cbfb7f3d",
+    "src/showcase.goose": "b40bf6776c5646dda6eb4c31e301424ae7434d90ef5f81d33a8097aebab15641",
+    "src/sim.goose": "a9e4570ffb93f5dc3076d345893bc5103b4f38c2f870f151b5c06f03584c1587",
+    "src/sound.goose": "93776bf1339a920532b94a1898d37572442c0452449a6c598eb48f50887180d1",
+    "src/telemetry.goose": "7d74e8f9d1fec54f7ff06884fddbcfa11fe052a73466edd4055b48f8105452c0",
+    "src/types.goose": "7d9ba5c76712add981dbd44b9f1e225c99738a7b2f69ae29c1875b94cf2525c3",
+    "src/world.goose": "47a93d1b98466e5431ff70f6b819a191994ba7d90192de38812f7798ad278b6f"
+  },
+  "elapsed_seconds": 5.926693417131901,
+  "rss_samples": [
+    {
+      "seconds": 0.0034134997986257076,
+      "rss_bytes": 32768
+    },
+    {
+      "seconds": 0.263329291716218,
+      "rss_bytes": 32768
+    },
+    {
+      "seconds": 0.52369554201141,
+      "rss_bytes": 72368128
+    },
+    {
+      "seconds": 0.7836660840548575,
+      "rss_bytes": 86900736
+    },
+    {
+      "seconds": 1.0454392498359084,
+      "rss_bytes": 88899584
+    },
+    {
+      "seconds": 1.3035677499137819,
+      "rss_bytes": 85327872
+    },
+    {
+      "seconds": 1.5573075418360531,
+      "rss_bytes": 85327872
+    },
+    {
+      "seconds": 1.810428624972701,
+      "rss_bytes": 85884928
+    },
+    {
+      "seconds": 2.0652965418994427,
+      "rss_bytes": 88670208
+    },
+    {
+      "seconds": 2.3248886670917273,
+      "rss_bytes": 85327872
+    },
+    {
+      "seconds": 2.5879103341139853,
+      "rss_bytes": 85327872
+    },
+    {
+      "seconds": 2.8414154588244855,
+      "rss_bytes": 88064000
+    },
+    {
+      "seconds": 3.105037041939795,
+      "rss_bytes": 87441408
+    },
+    {
+      "seconds": 3.3653729166835546,
+      "rss_bytes": 87949312
+    },
+    {
+      "seconds": 3.6263134167529643,
+      "rss_bytes": 88064000
+    },
+    {
+      "seconds": 3.8793299170210958,
+      "rss_bytes": 88064000
+    },
+    {
+      "seconds": 4.132554458919913,
+      "rss_bytes": 89047040
+    },
+    {
+      "seconds": 4.386276917066425,
+      "rss_bytes": 85426176
+    },
+    {
+      "seconds": 4.649175249971449,
+      "rss_bytes": 85426176
+    },
+    {
+      "seconds": 4.907362083904445,
+      "rss_bytes": 88162304
+    },
+    {
+      "seconds": 5.168468666728586,
+      "rss_bytes": 87883776
+    },
+    {
+      "seconds": 5.4222830417566,
+      "rss_bytes": 88047616
+    },
+    {
+      "seconds": 5.6761109586805105,
+      "rss_bytes": 88129536
+    }
+  ],
+  "sampling_interval_seconds": 0.25
+}

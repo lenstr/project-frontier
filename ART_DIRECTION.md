@@ -174,7 +174,8 @@ Blend: `c = mix(night, day, daylight)`, then `c = mix(c, dusk, dusk * 0.8)`.
   edge shows a seam. Add sun in-scatter: fog color
   `+= sun_color * pow(max(dot(view_dir, sun), 0), 8) * 0.35`. This is the single cheapest
   "atmosphere" win.
-- **Fog distance:** about 50% haze at 45% of the streaming radius, at least 92% haze at the
+- **Fog distance:** superseded by §11.4 (clear 140 m, visibility 1600 m). The old rule follows
+  for history: about 50% haze at 45% of the streaming radius, at least 92% haze at the
   streaming edge so chunks never pop in. Keep the 0.96 cap only for the sky; terrain at the
   stream edge may go to 1.0. Add height fog in valleys: extra
   `0.25 * exp(-max(y - 2, 0) / 6)` scaled by distance, colored the horizon color. It makes
@@ -335,9 +336,330 @@ flowchart TB
 - No UI element touching the screen edge; 16 px margin always.
 - Do not mix smooth and flat shading on the same object.
 
+## 11. World v2: vistas, landmarks, the factory district
+
+Why: the user played the default game and found it "пустынно и туман близко": barren, a fog wall,
+the hardware underused and no visible reason why Goose mattered. The approved hero frame was a
+postcard composed for the capture camera. The real game, seen from the play camera, was a flat
+mint carpet that ended in fog 96 m away. This section supersedes §4's fog distance and §9's order.
+Everything here is deterministic and cheap: value noise, hashes, no caves, no textures.
+
+Axes used below: `F = (-0.77, 0, -0.64)` is the default spawn camera forward (the approved planet
+yaw). `P = (0.64, 0, -0.77)` is the side axis. Spawn stays at the origin. `g(c, r)` is
+`exp(-|p - c|^2 / r^2)` on x/z.
+
+### 11.1 Composition from the spawn camera
+
+```mermaid
+flowchart LR
+    A["0..37 m<br/>landing pad, lander, player"] --> B["80..240 m<br/>factory district, glowing spine rail"]
+    B --> C["232 m<br/>comms tower at the spine end"]
+    C --> D["480 m<br/>forced spire landmark, 70 m"]
+    E["left of the spine, ~260 m<br/>amber mesas, terraced cliffs"] -.-> B
+    F2["right of the spine, ~270 m<br/>lavender fungal basin, giant mushrooms"] -.-> B
+```
+
+Four depth layers: the lander in the foreground; the district in the midground; mesas, fungal
+basin and ridgelines behind it; the spire and the planet on the horizon. The spine rail is the
+leading line from the player to the tower to the spire. Default time 15:00 (sun about 35 degrees
+up, behind the camera's left shoulder), so relief casts long shadows toward the horizon.
+
+### 11.2 Climate and height
+
+One function, `world::climate(x, z)`, feeds height, color, `biome()` and scatter. Today
+`color()` and `biome()` each recompute it; they must not diverge.
+
+```
+cl = noise(x/160 + 1.5, z/160 - 2, s+101)
+     - 0.32 * g(A, 130) + 0.32 * g(U, 120)        A = (-121, -207) amber, U = (-226, -81) fungal
+     - 0.55 * g(A, 45)                           compact amber core, round 6 implementation
+cl = mix(cl, 0.5, g(D, 110))                      D = (-123, -102) = F*160, district stays meadow
+arid = clamp((0.40 - cl) * 6), fungal = clamp((cl - 0.58) * 6), meadow = 1 - arid - fungal
+```
+
+Height in meters (`broad`, `detail` and `micro` as today: 27, 7, 1.1):
+
+| Term | Formula | Reads as |
+|---|---|---|
+| continental | `(noise(x/700, z/700, s+5) - 0.5) * 36` | big swells on the far LOD |
+| Meadow | `cont + broad + detail + micro + ridge_amplitude * r^4`, `r = 1 - abs(2*noise(x/210, z/210, s+71) - 1)`; amplitude 10 within 120 m of spawn, smooth return to 46 at 180 m | rolling land with sharp distant ridgelines; nearby relief does not hide biome edges |
+| Amber | `a = cont + 0.6*broad + 0.5*detail + 24*smoothstep(0.52, 0.60, noise(x/85, z/85, s+211))`; `q = a/8`; `a = 8*(floor(q) + smoothstep(0.42, 0.58, fract(q))) + 0.4*micro` | buttes and 8 m terraces with cliff faces; the §3 strata rule colors them |
+| Fungal | `0.7*cont + 0.5*broad - 6 + (noise(x/14, z/14, s+303) - 0.5)*3 - 7*smoothstep(0.62, 0.78, noise(x/48, z/48, s+313))` | a low hummocky basin with sink bowls |
+| Blend | `h = meadow*Hm + arid*Ha + fungal*Hf` | |
+| Dry salt river | `rv = abs(noise(x/300, z/300, s+401) - 0.5)`; `h -= 4*smoothstep(0.09, 0.045, rv) + 5*smoothstep(0.045, 0.012, rv)` | a canyon through the mesas; bed colored salt `#E6ECE8` where the inner term > 0.5 |
+| Landmarks | one per 384 m cell, center hashed with a 96 m margin. 30% spire: `R` 22..32, `H` 45..75, `H*max(1 - d/R, 0)^1.6`, 6 m terraces. 30% crater: `R` 35..60, rim `+7*exp(-((d/R - 1)/0.18)^2)`, floor `-9*(1 - smoothstep(0, 0.9, d/R))`. 40% none | named destinations visible from 1 km |
+| Forced spire | `S = F*480 = (-370, -307)`, `H` 70, `R` 30 | the vanishing point behind the tower |
+| Flat masks (last, override all) | landing (1.8 m, blend 13..37 m); district rect around `D`, `|u| <= 88` along `P`, `|v| <= 80` along `F`, floor 1.8 m, 22 m blend; approach `|u| <= 20`, global `v = 0..90`, 16 m shoulder | calm start, continuous walkable route, buildable district |
+
+The range is about -20..+120 m, so the far LOD has ridges, buttes and spires to show.
+
+### 11.3 Vegetation and reasons to explore
+
+- Grove mask threshold 0.54 becomes 0.42 (target 35..40% open land; measure it). Members per grove:
+  6..16 by hash instead of a fixed 8.
+- **One emergent per grove** at scale 2.2..3.0: a 12..18 m meadow tree, a 14..20 m hoodoo or a
+  14..22 m giant mushroom with night gills. Emergents make the skyline; small trees make the mass.
+- Meadow forms by hash: 50% the current spire stack, 25% umbrella (thin trunk, two flat 8-gon
+  discs, `#2A7A86`), 25% bulb (short trunk, fat octahedron, `#3A9C86`). Ring each grove with 4
+  shrub domes, 0.8..1.4 m, `#3A9C86`. This breaks up the field of identical cones.
+- Grass: 96 per chunk within 48 m of the camera, scaled to 0 at 64 m.
+- **Far forest tint:** `color()` blends 60% times meadow weight toward `#2A7A86` where the grove mask passes, so
+  forests read on the far LOD with no meshes.
+- The vegetation slider multiplies members and grass.
+- Ore by biome: Ferrite in the meadow, **Aurite only at amber cliff bases**, Glacite in fungal
+  bowls and craters, at 3x richness in craters. Each biome holds something the colony needs.
+
+### 11.4 Fog, light and shadows for play, not for one frame
+
+- Fog: `haze = 1 - exp(-max(d - clear, 0) / (0.45 * vis))`, with `clear` 140 m (slider 80..400)
+  and `vis` 1600 m (slider 600..2400). Peaks show through: `haze *= 1 - 0.45 *
+  smoothstep(15, 90, y_world)`. Hide the LOD edge: `haze = max(haze, smoothstep(0.88*edge, edge,
+  d))`. This gives 47% haze at 600 m and 70% at 1 km, so ridges layer into lighter bands.
+  Keep fog = sky horizon + sun in-scatter.
+- Shadows: one 2048 map, box 160 m centered at `player + camera_forward_xz * 40` (7.8 cm texels).
+  The far LOD casts no shadows and keeps wrapped Lambert, so relief still reads by shading.
+- Exposure: no change to the approved light floor. Verify that at 15:00 the near ground stays in
+  L100..120 and the far ridges in L150..190, not a white band.
+
+### 11.5 Factory district: the showcase colony
+
+The district is real machines, belts, rails and robots running the simulation; nothing in it is
+decorative.
+
+- Grid: 10x10 cells of 16x16 m. An 8 m spine along `F` through the center (`u = 0`). Cross alleys
+  of 4 m every 2 cells.
+- Column roles by distance from the spine: columns 1..2 processing (smelters, assemblers: ember
+  mouths, smoke along the spine), 3..4 mining (miners on seeded ore pads), 5 power (solar arrays,
+  relays). Material flows inward: belts from the outer columns into the spine, the spine rail
+  carries to the comms tower at `v = +72`.
+- Cell template (about 20 entities): 4 miners or 2 smelters plus an assembler, or 6 solar panels
+  plus 2 relays; belts between them; 2 robots per 2 cells on the alleys.
+- Fill order for the load slider (32..2000, default 512): near-to-far, then spine-out. Load 32 is
+  a tight core next to the lander; 2000 fills to the tower. Every load level looks intentional.
+- Cues that read at 150 m:
+  - **Production:** furnace glow follows throughput (±20% pulse, 0 when idle); one tiny cyan
+    spark on each completed craft (particle budget 256); status lights per §5.
+  - **Power:** wire and pad-rim emissive scale with satisfaction (0.4..1.5); brownout flickers
+    the wires orange at 2 Hz; unpowered cells go Slate.
+  - **Traffic:** the spine rail is Navy with small cyan running lights moving in the flow direction
+    at 4 m/s; carts are Ivory with cargo in the item color; robot hover discs mark the alleys.
+  - At dusk and night the district is the brightest thing in the frame: a glowing grid with a cyan
+    spine pointing at the tower.
+- Opening shot: start at `-F*20 + (0, 45, 0)`, looking at the district center, and ease over 3 s
+  into the play camera (pitch 0.24 rad, distance 12 m, yaw along `F`).
+
+### 11.6 Acceptance from the play camera
+
+Judge from the play camera at default settings, not a capture camera:
+
+1. From spawn, without moving: three biomes, at least one landmark above the horizon line, the
+   district and the tower are visible.
+2. Walking 300 m in any direction passes a new silhouette (ridge, butte, crater rim, spire or
+   emergent) at least every 150 m.
+3. No fog wall: land is readable to 600 m, and the LOD edge never shows a hard line.
+4. Within 50 m of the camera, at least 3 grove types or prop forms are in view in the meadow.
+
+### Implementation follow-up after round 6
+
+The climate anchors are now 240 m out and about 20 degrees either side of the camera axis.
+Their centers overlap the preserved flat district: they anchor color/climate, while relief
+appears beyond its boundary. A compact amber core is necessary for the fixed seed because the
+district's meadow pull otherwise wins at the relocated amber anchor. Measured climates are
+0.209360 (pure amber) and 0.911748 (pure fungal). Amber relief in the first strip beyond the
+district remains low and narrow; this constraint is not hidden by the anchor-color test.
+
+The scene implements a 2.5×, approximately 45 m scenery tower, spine masts, night windows,
+district grove clearance and the round-6 planet offset/daytime blend. The factory fixture uses
+finite input stores and mixed processing/power cells; it does not implement all proposed
+column-specific mining roles. Its exact entities, cargo and resource conservation are tested.
+
+Normal play starts directly at the approved 0.24 rad / 12 m camera. The requested strategic
+survey is a separate G/F10 mode, starting about 130 m above the base; Home reframes it.
+Flight moves the streaming/view focus, leaves the suit in place, and has visible HUD controls.
+Round 7 reviewed the new play, biome, flight and panel captures and accepted the build for play.
+The remaining salt-bed, flight-HUD and night-cap issues are documented below as polish.
+
 ## Critique log
 
 Screenshots from the running game are reviewed here, newest first.
+
+### 2026-10-26, round 7: survey flight, round 6 fixes, panels
+
+Inputs: `artifacts/frontier-v2-play.png`, `frontier-v2-dusk.png`, `frontier-v2-night.png` (spawn,
+play camera), `frontier-v2-flight.png` (survey flight, load 512), `frontier-v2-flight-2000.png`
+(same view, load 2000), `frontier-v2-amber.png`, `frontier-v2-fungal.png` (biome centers),
+`frontier-v2-panel-0.png`, `-1`, `-3` (Overview, World, Controls). All 1920x1080. The older
+`v2-*.png` are round 6 evidence and are not judged again.
+
+Scope limits: stills only. Beacon blink, running lights, pulses and flight motion are not judged.
+The panel shots show the top of each scrolled tab; the earlier 291-frame UI test covers colors,
+units, sliders and actions below the fold. Screen positions are read by eye, not measured.
+
+Status: **accepted for play. No play blockers.** The flight build should ship as it is; the three
+items below are polish, in order of value.
+
+Round 6 blockers:
+
+1. **District as the hero: resolved by day and dusk, mostly at night.** The scenery tower is now
+   the tallest vertical in the spawn frame, dead center, with the spine masts as a row of poles
+   above the district strip; the leading line spawn, district, tower, spire reads at once. At dusk
+   and night the district is a continuous cyan band across the horizon, the brightest broad shape
+   in the frame. From the 12 m play camera the district stays a strip on the horizon line; that is
+   geometry, and survey flight now answers it.
+2. **Spawn framing: resolved for the planet, partly for the biomes.** The planet sits in the sky
+   gap left of the tower, clear of the spire; by day it is a pale haze disc instead of the maroon
+   blot, at dusk and night a banded planet that frames the scene. Tan terraced buttes read left of
+   the tower. No lavender mushroom wall reads from spawn: the left third is the meadow hill and the
+   near umbrella trees. Given the documented constraint (both anchors inside the flat district) and
+   that flight shows all three biomes in one frame, I do not hold this open as a blocker.
+3. **Panels: resolved.** Overview has swatches in the series colors, a 15 ms axis with the pinned
+   "budget 16.67 ms above" label, and a CPU table with average, p95, an orange bar and share,
+   sorted, with Robots indented under Simulation. The chart is mostly cyan because render CPU is
+   68% of the frame: that is the honest answer to "where does the frame go". World has the legend
+   beside the map, `Outline: pending`, `Triangle: you`, and no orange cell fill. Controls reads
+   `15:08`, `140 m`, `1600 m`, `1.00×`, and opens with the flight section.
+
+Survey flight against the user's request («стратегически облетать все владения и заодно
+лицезреть все и сразу»): **fulfilled.** From the 130 m start one frame holds the district grid with
+its spine and tower, the fungal basin and mushroom forest on the left, amber relief and hoodoos on
+the right, forest groves, ridges, the spire and the mountain horizon, with no fog wall and no LOD
+seam. At load 2000 the grid fills to the tower and reads as a colony, not a test scene. The
+control card is clear and complete. This is the best frame the game has produced.
+
+Remaining, in order of value:
+
+1. **The salt river bed draws hard white sawtooth bands.** In flight they run along both sides of
+   the district plateau and are the brightest marks in the overview; the same white teeth show at
+   the left horizon from spawn and behind the fungal basin. They read as a rendering fault, not a
+   dry river. Cause, read in code: `world.goose` around line 579 switches the vertex color to
+   `#E6ECE8` when `salt > 0.5`, so the edge follows the triangle grid. This follows my own §11.2
+   wording, which was wrong. Fix: blend `col` toward salt by `smoothstep(0.35, 0.75, salt)` and
+   lower it to a pale sand such as `#CFCBB8`, so the bed stays lighter than the meadow but darker
+   than the tower and machines.
+2. **Flight HUD hides the suit and repeats itself.** The flight card at the bottom center covers
+   the spot where the suit stands, so the overview does not show where you are. The hint toast
+   repeats the card's controls, and Exosuit Cargo has no use in flight. Fix: in flight, hide the
+   toast and the cargo card, and either draw the suit with a small cyan ground ring visible from
+   altitude or shift the flight card so the base is not under it.
+3. **The tower cap does not read at night.** In the night still the tower is a grey silhouette;
+   the 1.5 cyan cap is not visible, so at night the spine leads to a dark shape. The orange beacon
+   may be in its off phase in a still, but the cap should glow steadily. Check the cap emissive and
+   its night scale with the running game.
+
+Still open from round 6, low value: Ferrite clusters in the fungal basin, the default-style
+"Developer Console" title bar, and, with the panel open, the hint toast and power card moving over
+the tower. The amber center is now ochre under the player and the cliff reads; the amber strip
+beside the district is still an orange smudge on a green slope in flight, as the implementation
+note says.
+
+### 2026-10-26, round 6: world v2 and the developer panel from the play camera
+
+Inputs: `artifacts/v2-play.png`, `v2-dusk.png`, `v2-night.png` (spawn, play camera pitch 0.24,
+distance 12, FOV 55, no hero flag), `v2-amber.png`, `v2-fungal.png` (play camera at the biome
+centers), `v2-panel-0.png`..`v2-panel-4.png` (one per tab). All 1920x1080.
+
+Scope limits: stills only, no motion (running lights, pulses, grass fade and LOD pop are not
+judged); the panel shots show the top of each scrolled tab, so the counter tiles, reuse and memory
+charts, threads and the lower Controls rows are not reviewed; §11.6 items 2 and 4 need a walk and
+are not judged; screen positions below are read off the captures by eye, not measured.
+
+Status: **not accepted yet. Big step forward; three blockers.**
+
+What improved, and holds:
+
+- **The fog wall is gone.** Ridgelines, a forest band and grey-blue mountains layer to the horizon
+  with soft haze; no LOD seam is visible in any shot. The "туман близко" half of the feedback is
+  fixed.
+- **The frame has depth layers now:** lander and player, then the district band, then forest,
+  then mountains, the spire and the planet. The play camera sees about a quarter of the frame as
+  sky instead of all ground.
+- **The fungal basin is the best new thing in the game:** lavender ground, a wall of giant
+  mushrooms with lit caps, unmistakable at a glance. **The amber biome has relief:** a cliff face
+  and terraced slope read as a new place.
+- **Meadow props are varied:** umbrella trees, pines, shrub domes, glacite and ferrite clusters in
+  one frame, against round 5's identical cones.
+- **The panel is a designed tool, not a float dump:** consistent units (`µs`, `ms`), Roboto, the
+  orange caption hierarchy, an honest Goose lead ("not a claim about FPS"), the CPU table whose
+  biggest row is render submission, and HUD cards that move out of its way.
+
+Blockers:
+
+1. **The district is not the hero at day, dusk or night.** From spawn it is a thin white-and-navy
+   strip on the horizon line, the same height as the forest behind it, which eats its far half. No
+   tower reads above it: the showcase tower is the ordinary `TOWER` machine at 232 m
+   (`showcase.goose`, `position(0.0, 72.0)`), so it is a speck. At dusk and night the district shows
+   a handful of cyan dots while the lander pad rim is brighter; §11.5 asks for the brightest thing
+   in the frame. Fixes:
+   - Showcase tower as scenery at 3x scale (about 35..45 m), with a cyan cap emissive 1.5 and a
+     Signal Orange beacon blinking at 1 Hz, so the spine leads to something.
+   - Light masts along the spine every 32 m: 10 m Navy pole, 1.2 m cyan head, emissive 1.2 at
+     night, 0.4 by day. Spine running lights at least 0.5 m long so they survive 150 m.
+   - Night emissive on every district machine: an Ivory or Ember window band (furnace mouths
+     Ember `#FF9A3C` at 1.2, assemblers and solar rims cyan at 0.8), fading in with the sun below
+     8 degrees.
+   - No groves in the district rect plus 40 m, and no emergent within 20 m of the spine axis out to
+     the spire, so the leading line spawn → spine → tower → spire is open.
+2. **Spawn framing misses §11.6 item 1.** The planet direction in `render.goose`
+   (`planet_dir = normalize(vec3(-0.761, 0.122, -0.637))`) is the spawn forward `F` itself, so the
+   planet sits directly on the forced spire: the spire tip pokes out under the disc and the landmark
+   loses its silhouette. By day the disc is a dark maroon-brown blot, heavier than round 4 note 2.
+   Neither secondary biome reads from spawn: by my projection A and U lie about 33 degrees off the
+   axis, which puts them at the frame edges, under the big meadow hill on the left and behind the
+   lander and the right-hand forest. The tan buttes left of the district are something else. Fixes:
+   - Move the planet about 16 degrees of yaw off `F`, to screen left over the sky gap between the
+     hill and the district: `F*cos16 - P*sin16`, i.e. about `(-0.910, 0.122, -0.400)`; flip the `P`
+     sign if it lands screen right. Do the round 4 day blend (`0.35 + 0.35*d` to `0.55 + 0.25*d`).
+   - Bring A and U to about 20 degrees off `F` at 220..260 m (half the current lateral offset) and
+     cap the meadow ridge term within 120 m of spawn on the hill side, so one butte group and one
+     mushroom wall each show between the HUD cards. Check with the capture, not by formula.
+3. **The Overview chart does not answer "where does the frame go".** Every bar is one cyan, and
+   the legend is a plain text line with no swatches, so the five series cannot be told apart; the
+   Ivory total line does not read. The CPU stages table shows the latest frame only, so values
+   flicker and nothing ranks. On the World tab the chunk-map legend collides with the data: fungal
+   cells are lavender while "Lavender: pending" is the legend, and amber cells are orange while
+   "Orange: player chunk" is the legend (`dev_panel.goose` around line 457). Fixes:
+   - Stack the bars in the series colors of `docs/DEVELOPER_UI_DESIGN.md`, with an 8 px swatch
+     before each legend name; Ivory 1.5 px total line on top.
+   - Y range: keep `max(p99*1.25, budget*1.5)`, but when p99 is under a third of the budget, use
+     `max(p99*2, 8 ms)` and pin a label "budget 16.67 ms ↑" at the top. At 220 FPS, p99 5.8 ms
+     against a 25 ms axis leaves the data in the bottom quarter of the chart.
+   - CPU stages: avg and p95 over 240 frames, a 160 px orange bar per row and a share column,
+     sorted by avg.
+   - Chunk map: biome colors at 55% value as specified; pending as a 1 px Lavender outline only;
+     the player as the orange triangle only, no orange cell fill, and the legend says "Triangle:
+     you".
+
+Non-blocking, in order of value:
+
+- The foreground half of the spawn frame is still flat teal with sparse grass. Grass within 48 m to
+  about 2.5x the current count; the clearing is calm by design, but not empty.
+- At the amber center the ground under the player is meadow teal; only the slope is ochre. The
+  hoodoos are evenly banded cones and read as traffic cones: vary the taper per band and offset
+  bands by hash.
+- Ferrite (red) clusters are thick in the fungal basin; §11.3 puts Glacite there.
+- Controls units: `15.13h` should read `15:08`; `140m` and `1600m` need a space; `1.0x` and `1.00x`
+  should use `×`. The reset button is an empty box: give it a `↺` glyph.
+- The window chrome (title bar "Developer Console" with `-` and `X`) is the default style, a
+  lighter blue than the panel. Restyle it to the panel's gradient or drop it.
+- The biome card shows unlabeled coordinates (`0 / 7`, `-81 / -263`). Prefix them or drop them in
+  play.
+- With the panel open, the power card and toast cover the planet. Fine once the planet moves left.
+
+### 2026-10-26, round 5: user play feedback (supersedes the round 4 approval)
+
+The user ran the default game: "пустынно и туман близко - не впечатляет, не пушит возможности
+железа и не понятно в чем язык помог". `artifacts/frontier-window.png` (play camera) confirms it:
+a flat mint plane, scattered grass glyphs, one ore cluster and the lander, no horizon, no relief,
+no biome edge. The camera looks down at 35..40 degrees, so the frame is all ground. The debug
+text is a wall of raw float digits (`0.003000255674123764 ms`). The round 4 approval held only for
+the capture camera.
+
+Diagnosis: radius 3 (96 m) with fog from 40 m hides everything beyond the clearing; height
+amplitude of ±17 m over 120 m cells is invisible at play distance; 60% empty grove masks and 8
+identical cones read as sparse; the colony is 133 entities huddled behind the camera.
+
+Direction: §11 (world v2) and `docs/DEVELOPER_UI_DESIGN.md` (the F1 developer panel, which is
+where the Goose story becomes visible). Round 4 notes 1..3 stay open; they are minor now.
 
 ### 2026-10-26, round 4 (final): noon, dusk, night, victory
 

@@ -1,0 +1,31 @@
+{
+  "synchronous_gpu_completion": true,
+  "resolution": [1920,1080],
+  "frames": 2989,
+  "average_fps": 102.59483232096983,
+  "frame_ms_p50": 7.9830000177025795,
+  "frame_ms_p95": 14.479000121355057,
+  "frame_ms_p99": 18.55600019916892,
+  "simulation_ms_p95": 0.387,
+  "render_cpu_ms_p95": 4.101000260561705,
+  "mesh_cpu_ms_p95": 0.0029997900128364563,
+  "ui_cpu_ms_p95": 1.1680000461637974,
+  "gpu_completion_wait_ms_p95": 10.453000199049711,
+  "entity_slots": 636,
+  "active_entities": 636,
+  "chunk_slots": 169,
+  "generated_chunks": 169,
+  "generation_cpu_total_ms": 2.538999999999993,
+  "queue_calls_total_ms": 0.4010000000000003,
+  "quality_radius": 6,
+  "horizon_meshes": 4,
+  "horizon_triangles": 131662,
+  "submitted_triangles": 712058,
+  "draw_calls": 349,
+  "dynamic_gpu_capacity_bytes": 25059120,
+  "showcase_load": 512,
+  "developer_panel_mode": 1,
+  "shadows": true
+}
+
+FRONTIER rendered 3000 frames; 636 entities; 169 chunks; triangles=712058 screenshot=/Users/lenstr/workspace/personal/dev/repos/project-frontier/build/qa/final-m5-512/capture.png

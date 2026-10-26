@@ -7,11 +7,18 @@ import os;
 import gfx;
 import .types;
 
-struct Mesh { vertices: gfx::Buffer, count: i64 }
+struct Mesh { vertices: gfx::Buffer, count: i64, casts_shadow: bool = true }
 
 struct CameraUniform { view_proj: gfx::mat4, light_view_proj: gfx::mat4 }
 
-struct LightUniform { sun: float4, eye: float4, fog: float4, params: float4 }
+struct LightUniform {
+    sun: float4,
+    eye: float4,
+    fog: float4,
+    params: float4,
+    distances: float4,
+    terrain_center: float4,
+}
 
 struct SkyUniform { forward: float4, right: float4, up: float4, sun: float4, params: float4 }
 var triangles: i64;
@@ -20,12 +27,18 @@ var upload_ms: f64;
 var dynamic_buffer: gfx::Buffer;
 var dynamic_capacity: i64;
 var scene_pipeline: gfx::Pipeline;
+var wire_pipeline: gfx::Pipeline;
+var wireframe = false;
 var shadow_pipeline: gfx::Pipeline;
 var sky_pipeline: gfx::Pipeline;
 var shadow_map: gfx::Texture;
 var shadow_compare: gfx::Sampler;
 // Set to the visible chunk radius in metres; the last terrain ring dissolves into sky.
 var stream_radius: f32 = 112.0;
+var fog_clear: f32 = 140.0;
+var visibility: f32 = 1600.0;
+var horizon_edge: f32 = 2048.0;
+var horizon_center: float3;
 
 fn triangle(out: ft::Vertex[>..]&, a: float3, b: float3, c: float3, col: float4) {
     let n = cross(b - a, c - a);
@@ -223,8 +236,7 @@ fn release(m: Mesh) {
 }
 
 fn init() {
-    scene_pipeline = gfx::pipeline(
-        embed_shader("vert", """
+    let scene_vertex = embed_shader("vert", """
             layout(location = 0) in vec3 position;
             layout(location = 1) in vec3 normal;
             layout(location = 2) in vec4 color;
@@ -243,8 +255,8 @@ fn init() {
                 shadow_position = light_view_proj * vec4(position, 1.0);
                 gl_Position = view_proj * vec4(position, 1.0);
             }
-        """),
-        embed_shader("frag", """
+    """);
+    let scene_fragment = embed_shader("frag", """
             layout(location = 0) in vec3 world;
             layout(location = 1) in vec3 norm;
             layout(location = 2) in vec4 tint;
@@ -255,6 +267,8 @@ fn init() {
                 vec4 eye;
                 vec4 fog;
                 vec4 params;
+                vec4 distances;
+                vec4 terrain_center;
             };
             layout(location = 0) out vec4 result;
             float shadow() {
@@ -295,11 +309,12 @@ fn init() {
                 float edge = pow(1.0 - max(dot(n, normalize(eye.xyz - world)), 0.0), 3.0) * 0.06;
                 lit += fog.rgb * edge * 1.67;
                 float distance_to_eye = length(world - eye.xyz);
-                float fog_distance = max(distance_to_eye - 40.0, 0.0);
-                float haze = 1.0 - exp(-pow(fog_distance * fog.w, 2.0));
-                float valley = 0.15 * exp(-max(world.y - 2.0, 0.0) / 6.0)
-                    * (1.0 - exp(-fog_distance * 0.015));
-                haze = clamp(haze + valley, 0.0, 1.0);
+                float fog_distance = max(distance_to_eye - distances.x, 0.0);
+                float haze = 1.0 - exp(-fog_distance / (0.45 * distances.y));
+                haze *= 1.0 - 0.45 * smoothstep(15.0, 90.0, world.y);
+                vec2 from_center = abs(world.xz - terrain_center.xz);
+                float terrain_edge_distance = max(from_center.x, from_center.y);
+                haze = max(haze, smoothstep(distances.z * 0.88, distances.z, terrain_edge_distance));
                 // Alpha >= 4 marks the objective's high-energy beacon material.
                 if (tint.a >= 4.0) {
                     haze = min(haze, 0.30);
@@ -311,8 +326,14 @@ fn init() {
                 lit = mix(lit, lit * lit * (3.0 - 2.0 * lit), 0.25 * daylight);
                 result = vec4(lit, 1.0);
             }
-        """),
+    """);
+    scene_pipeline = gfx::pipeline(
+        scene_vertex, scene_fragment,
         gfx::PipelineDesc { depth_test: true, depth_write: true, cull: gfx::CULL_NONE }
+    );
+    wire_pipeline = gfx::pipeline(
+        scene_vertex, scene_fragment,
+        gfx::PipelineDesc { depth_test: true, depth_write: true, cull: gfx::CULL_NONE, wireframe: true }
     );
     shadow_pipeline = gfx::pipeline(
         embed_shader("vert", """
@@ -367,7 +388,7 @@ fn init() {
                 vec3 sun_color = mix(vec3(1.0, 0.945, 0.839), vec3(1.0, 0.698, 0.478), dusk * 0.8);
                 color += sun_color * pow(sun_dot, 8.0) * d * 0.35;
                 color += vec3(1.0, 0.91, 0.65) * smoothstep(0.99955, 0.9998, sun_dot) * d;
-                vec3 planet_dir = normalize(vec3(-0.761, 0.122, -0.637));
+                vec3 planet_dir = normalize(vec3(-0.910, 0.122, -0.400));
                 float planet = dot(ray, planet_dir);
                 float radius = 0.087266;
                 float disk = smoothstep(cos(radius), cos(radius - 0.003), planet);
@@ -378,6 +399,7 @@ fn init() {
                 vec3 planet_color = mix(vec3(0.788, 0.651, 0.784), vec3(0.914, 0.784, 0.847), bands);
                 planet_color *= 0.35 + 0.65 * max(dot(nrm, sun.xyz), 0.0);
                 planet_color = mix(planet_color, horizon, smoothstep(0.85, 1.0, sqrt(r2)) * 0.25);
+                planet_color = mix(planet_color, color, d * (0.55 + 0.25 * d));
                 color = mix(color, planet_color, disk);
                 vec2 star_cell = floor(ray.xz / max(abs(ray.y) + 0.2, 0.2) * 210.0);
                 float star = step(0.9975, hash(star_cell)) * smoothstep(0.26, 0.5, ray.y);
@@ -393,8 +415,11 @@ fn init() {
     gfx::check();
 }
 
-fn draw_meshes(meshes: const Mesh[:], dynamic_count: i64) {
+fn draw_meshes(meshes: const Mesh[:], dynamic_count: i64, shadow_pass: bool) {
     for m in meshes {
+        if shadow_pass && !m.casts_shadow {
+            continue;
+        }
         if m.count <= 0 || m.vertices.id == 0 {
             continue;
         }
@@ -441,12 +466,13 @@ fn draw_scene(
     let dusk_t: f32 = clamp(abs(raw_sun_y - 0.12) / 0.35, 0.0, 1.0);
     let dusk: f32 = 1.0 - dusk_t * dusk_t * (3.0 - 2.0 * dusk_t);
     let daylight: f32 = clamp(sin(angle) * 2.2 + 0.23, 0.0, 1.0);
-    let focus = float3 { eye.x, 0.0, eye.z };
+    let horizontal_forward = normalize(float3 { target.x - eye.x, 0.0, target.z - eye.z });
+    let focus = float3 { target.x, target.y - 1.2, target.z } + horizontal_forward * ft::splat(40.0);
     let light_eye = focus + sun * ft::splat(120.0);
     let up_axis = float3 { 0.0, 1.0, 0.0 };
-    let light_projection = gfx::ortho(-90.0, 90.0, -90.0, 90.0, 1.0, 260.0);
+    let light_projection = gfx::ortho(-80.0, 80.0, -80.0, 80.0, 1.0, 260.0);
     let light_view_proj = gfx::mul(light_projection, gfx::look_at(light_eye, focus, up_axis));
-    let projection = gfx::perspective(0.95993, aspect, 0.08, 550.0);
+    let projection = gfx::perspective(0.95993, aspect, 0.08, 3200.0);
     let camera = CameraUniform {
         gfx::mul(projection, gfx::look_at(eye, target, up_axis)),
         light_view_proj
@@ -455,7 +481,7 @@ fn draw_scene(
     if shadows {
         gfx::bind(shadow_pipeline);
         gfx::uniforms(gfx::VERTEX, 0, camera);
-        draw_meshes(meshes, dynamic.len);
+        draw_meshes(meshes, dynamic.len, true);
     }
     gfx::end_pass();
     let fog_day = float3 { 0.749, 0.878, 0.855 };
@@ -476,17 +502,19 @@ fn draw_scene(
     });
     gfx::draw(3);
     draw_calls++;
-    gfx::bind(scene_pipeline);
+    gfx::bind(if wireframe { wire_pipeline } else { scene_pipeline });
     gfx::uniforms(gfx::VERTEX, 0, camera);
     let fog_density = 0.833 / max(0.70 * stream_radius - 40.0, 12.0);
     gfx::uniforms(gfx::FRAGMENT, 0, LightUniform {
         float4 { sun.x, sun.y, sun.z, 0.0 },
         float4 { eye.x, eye.y, eye.z, 0.0 },
         float4 { fog.x, fog.y, fog.z, fog_density },
-        float4 { daylight, if shadows { 1.0 } else { 0.0 }, seconds, dusk }
+        float4 { daylight, if shadows { 1.0 } else { 0.0 }, seconds, dusk },
+        float4 { fog_clear, visibility, horizon_edge, 0.0 },
+        float4 { horizon_center.x, horizon_center.y, horizon_center.z, 0.0 }
     });
     gfx::bind_texture(gfx::FRAGMENT, 0, shadow_map, shadow_compare);
-    draw_meshes(meshes, dynamic.len);
+    draw_meshes(meshes, dynamic.len, false);
     gfx::end_pass();
 }
 
@@ -497,6 +525,7 @@ fn shutdown() {
     dynamic_buffer = gfx::Buffer { 0 };
     dynamic_capacity = 0;
     gfx::release(scene_pipeline);
+    gfx::release(wire_pipeline);
     gfx::release(shadow_pipeline);
     gfx::release(sky_pipeline);
     gfx::release(shadow_map);

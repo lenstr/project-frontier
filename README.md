@@ -4,7 +4,7 @@ A playable third-person exploration and automation game, written in **Goose**. M
 heightfield world, build a small industrial colony, move cargo over animated rails and with
 autonomous robots, and power a planetary beacon to complete the expedition.
 
-![A running colony](artifacts/frontier-noon.png)
+![The expanded world and a running colony](artifacts/frontier-v2-play.png)
 
 ## Run
 
@@ -27,9 +27,12 @@ executed and measured here. On other platforms use the official v2026.3 compiler
 
 ```sh
 ./run.sh --resume                   # Restore the last manual save
-./run.sh --quality low              # Radius 2, shadows off
-./run.sh --quality high             # Radius 4, shadows on
-./run.sh --demo                     # A supplied working colony, separate from a new expedition
+./run.sh --quality low              # Radius 3, shadows off
+./run.sh --quality high             # Radius 8, shadows on
+./run.sh --showcase --devtools       # 512 real colony entities, interactive engine inspector
+./run.sh --showcase --flight         # Fly above the whole industrial district
+./run.sh --showcase --load 2000      # Large finite-input factory workload
+./run.sh --demo                     # The original small working colony
 ./run.sh --help
 ./tools/package-macos.sh            # Rebuild the local .app
 ```
@@ -53,6 +56,9 @@ first machines; the beacon requires further mining and production.
 | R | Reclaim a nearby structure and its materials/cargo |
 | Tab / Escape | Field guide / pause or cancel placement |
 | F5 / F9 / F12 | Save / load / screenshot |
+| G / F10 | Toggle detached survey flight; return to the unchanged suit |
+| WASD, Q/E, Shift in flight | Level movement, altitude, acceleration ×4 |
+| Right drag / wheel / Home in flight | Look / change flight speed / overview of the base |
 
 Build a **Drill** within 5 m of Ferrite and link it to a **Smelter**. The smelter consumes two
 ore units per Alloy. Put solar arrays or relays nearby: power connects automatically through
@@ -68,6 +74,12 @@ The **Beacon** costs **20 Alloy, 10 Glacite and 8 Circuits**. Supply its 8 kW de
 45 seconds to transmit. A cyan sky beam marks success; exploration and production continue.
 The public-API progression test completes this loop without resource grants.
 
+Survey flight starts about 130 m above the base, with the entire district in view. The suit
+stays in place and the colony keeps running. Detailed chunks and distant terrain follow the
+camera's view; flying does not teleport the player or edit the save. G returns to the suit.
+The HUD shows altitude, speed and controls; the developer panel also has flight buttons and
+a 10–300 m/s speed slider. Mouse wheel adjusts that speed, and Shift multiplies it by four.
+
 Saving is explicit. On macOS the default save is
 `~/Library/Application Support/Project Frontier/frontier.sav`; Linux uses
 `~/.local/share/project-frontier/frontier.sav`. `--save PATH` overrides it. The pause menu has
@@ -77,17 +89,35 @@ current expedition intact. Screenshots go to `artifacts/frontier.png` in the wor
 
 ## Developer controls and tests
 
-F1 toggles diagnostics; F2/F3 create/destroy 1,000 objects; F4 repeatedly moves through chunks;
-F6 adds a robot; F7 builds a resource-network stress fixture; F8 advances the day. O toggles
-shadows and +/- changes the streaming radius. The overlay reports frame/simulation/upload time,
-entity and chunk storage high-water counts, queued generation work, triangles and collection
-pool cells. These are application counters, not a native heap or GPU-driver memory profiler.
+F1 cycles the developer panel through full, compact and closed. The visible **F1 Developer**
+button also opens it. Its five tabs are:
+
+- **Overview:** bounded frame history, p50/p95/p99 and CPU time by subsystem.
+- **World:** a live chunk map, worker queue/generation timings, horizon LOD and GPU resource counts.
+- **Goose:** live/free/retained entity and collection pools, reuse history and a repeatable churn action.
+- **Controls:** simulation speed, pause/step, time of day, streaming radius, fog, vegetation,
+  shadows, wireframe, robot planning budget and a 32–2,000 entity colony load slider.
+- **Inspect:** pin an entity with the Pick button or middle click, inspect inventories, queues
+  and links, and follow a linked machine. Destroyed/reused handles are rejected visibly.
+
+The large colony is opt-in with `--showcase` or **Build colony** in Controls. It uses real finite
+feedstock, production queues, power, cargo packets and robot routes. Changing its load preserves
+resources in an ownership escrow; saving transfers escrow back into an actual store.
+Its landmark tower is scenery, so it does not complete the player's mission.
+
+F2/F3 create/destroy 1,000 storage-bearing objects; F4 repeatedly moves through chunks; F6 adds
+a robot; F7 builds a resource-network fixture; F8 advances the day. O toggles shadows and +/-
+changes the streaming radius. Pool lengths and logical byte estimates are application counters.
+OS residency and GPU-driver memory are measured separately; GPU completion waiting is CPU time,
+not a hardware utilization percentage or GPU timestamp query.
 
 ```sh
-./tools/test.sh                     # Debug-check entity/world/gameplay/persistence tests
+./tools/test.sh                     # Debug entity/world/gameplay/persistence/telemetry/showcase tests
 ./run.sh --playtest --mute          # Real mouse/key events through the ordinary application
+./run.sh --flight-test --mute       # Real flight keys, streaming, Home and unchanged suit checks
 ./run.sh --stress 200               # Deterministic headless churn and streaming
-./tools/test.sh --graphics          # Also run the GPU streaming/churn test
+./tools/test.sh --graphics          # Also check rendering, LOD lifetimes and actual panel input
+./tools/test.sh --stress-graphics   # Sustained GPU streaming/churn workload
 ```
 
 The sustained GPU workload runs 2,500 streaming rounds (50,000 frames):
@@ -119,6 +149,12 @@ Game rules, ECS, inventories, terrain and mesh generation, collision, pathfindin
 save conversion, particles and procedural audio samples are Goose. The official `gfx`, `ui`
 and `audio` packages provide SDL3/Metal/Vulkan/D3D platform facilities. **Project-native C/C++:
 zero lines.** The repository contains no custom heap allocator.
+
+The default detailed terrain window is 13×13 chunks (416 m across). Two isolated workers stream
+the detailed heightfield; four cached LOD rings extend the visible landscape roughly 2 km. Ridges,
+terraced mesas, fungal basins, salt channels, spires and craters share one climate function.
+The landing area and its approach to the factory district stay walkable. Fog begins at 140 m
+by default and has a 1,600 m visibility scale; both are editable live.
 
 This is a small colony game: terrain is a deformable heightfield with three biomes, rather than
 a volumetric cave system. Distant terrain regenerates deterministically; sparse player edits

@@ -29,7 +29,9 @@ algorithms need further work.
   SDL3's GPU API and Metal on this platform.
 - Bootstrap/build: `tools/bootstrap.sh` and `tools/build.sh`; downloaded toolchains and build
   outputs are excluded from source control.
-- Source: about 3,000 production Goose lines including comments and embedded GLSL, plus tests.
+- Source: roughly 8,800 readable production Goose lines including comments and embedded GLSL,
+  plus tests. The earlier compact baseline had fewer physical lines; line count is not a measure
+  of the language's productivity.
   The repository adds **zero C/C++ source lines**. Generated C and the pre-existing official
   package/runtime implementation are separate from that count.
 
@@ -41,7 +43,163 @@ implementation uses the pinned distribution's actual APIs and examples, especial
 sample 27, mini-Minecraft sample 30, thread sample 23, serialization sample 25 and reusable
 file-tree sample 26. Online master documentation can describe features absent from this release.
 
-## Recorded deterministic results
+## Expanded-world experiment (v2)
+
+The original measurements below remain evidence for the original world and render workload.
+They do not describe the expanded world. V2 adds up to 289 detailed chunks, four distant LOD
+rings, denser varied vegetation, and an interactive developer panel. Default terrain detail
+radius is 6 (169 chunks), with a 1,600 m fog visibility scale and distant terrain around 2 km.
+The optional factory fixture contains 32–2,000 real entities, rather than cosmetic stress cubes.
+
+### What can now be observed in the game
+
+F1 opens a five-tab panel with a 240-frame history, frame percentiles, CPU stage intervals,
+chunk residency/jobs, navigation work, pool live/free/retained counts, and entity inspection.
+Controls change simulation speed, time, fog, vegetation, detail radius, shadows, wireframe,
+pathfinding budget and colony load. Churn grows three independent collection pools and reports
+time and storage before/after. No panel counter is presented as a GPU utilization percentage.
+GPU completion waiting is main-thread elapsed blocking time, not a GPU timestamp query.
+
+The memory estimate counts selected logical payload only. It excludes native graphics memory,
+OS residency, allocator metadata and data-stack committed-byte high-water marks. A stale handle
+is rejected by generation checks; a global rejection counter is explicitly unavailable rather
+than displayed as an invented zero. The inspector's invalid-handle behavior is exercised by
+destroying a pinned entity and reusing its slot in the actual-input UI test.
+
+### Real simulation workload
+
+`tests/showcase_benchmark.goose` runs 120 warmup ticks then 600 fixed 1/60 s ticks per load,
+in one process with retained pool storage. Release measurements on the M5 Max:
+
+| Requested colony entities | Total active entities | Production machines / robots | Mean tick | p95 | p99 | Outputs |
+|---:|---:|---:|---:|---:|---:|---:|
+| 32 | 156 | 6 / 5 | 0.0070 ms | 0.003 ms | 0.144 ms | 22 |
+| 512 | 636 | 102 / 101 | 0.2272 ms | 0.292 ms | 1.368 ms | 406 |
+| 2,000 | 2,124 | 400 / 398 | 0.4106 ms | 0.259 ms | 0.779 ms | 1,600 |
+
+These are elapsed main-thread simulation intervals, excluding rendering, input, streaming,
+telemetry refresh and disk. Timers have finite resolution; sub-microsecond zeros mean below
+the recorded resolution. A larger workload does not imply a larger percentile for every stage:
+robot planning is budgeted, discrete jobs align differently, and outliers matter. The largest
+2,000-load tick was **32.907 ms**, in the robot stage. The fixture recorded 7/5/9 failed local
+path attempts and peak route-request backlogs of 1/96/395. Two plans per tick limit work and
+introduce waiting; these results do not establish responsive navigation for 398 busy robots.
+
+Resource equivalents are conserved across recipes, packets, robot cargo and resize escrow.
+Six warmed 32↔2,000 cycles retained the same 2,124 entity slots, 1,696 inventory cells,
+645 queue cells, 1,998 edge cells and 1,120 packet slots. This is successful reuse for this
+allocation trace, not proof against arbitrary fragmentation. Inputs are finite stores, not
+unlimited production grants per tick. The showcase tower is a rendered landmark; the player's
+constructed, powered tower remains the progression objective.
+
+### Full rendered workload and an actual optimization
+
+Raw simulation measurements, subsystem distributions and compiler/source/executable identities
+are in [the CPU result](artifacts/v2-showcase-benchmark.json) and
+[its manifest](artifacts/v2-showcase-source-manifest.json).
+
+The first large graphical runs exposed repeated procedural rail geometry and nearest-wire
+endpoint scans in `scene::draw`. A Goose-owned static GPU rail mesh and exact topology cache
+remove that repeated work while chevrons, packets, wire power colors and robots remain live.
+The cache test matches legacy static vertices exactly, invalidates edits/topology/visibility,
+and balances **30 uploads / 30 releases**, with at most two live rail meshes. A cache-only
+image comparison differs at one of 2,073,600 pixels due to changed opaque draw ordering; it is
+not reported as pixel-identical.
+
+A short paired 1,000-frame M5 Max run measured 123→176 FPS at load 512 and 39→62 at load
+2,000. Render CPU p95 changed from 6.18→3.57 ms and 23.31→12.42 ms, respectively.
+The [paired result](artifacts/v2-render-cache-comparison.json) records binary identities.
+These absolute values must stay separate from earlier and final runs. The dynamic buffer
+capacity roughly halved, but static rails now own a separate buffer: total GPU memory was
+not shown to halve. This is an engine algorithm/lifetime improvement, not a Goose-vs-C++ test.
+
+Final full-game measurements use 1,920×1,080 offscreen rendering, radius 6, shadows, the full
+Overview panel, active simulation and explicit GPU completion every frame:
+
+| Machine | Colony load / total entities | Samples | Mean FPS | Frame p50 / p95 / p99 |
+|---|---:|---:|---:|---|
+| M1 Max, 32 GB | 512 / 636 | 1,789 | 121.69 | 8.120 / 9.073 / 10.391 ms |
+| M1 Max, 32 GB | 2,000 / 2,124 | 1,189 | 44.61 | 21.399 / 24.825 / 46.604 ms |
+| M5 Max, 128 GB | 512 / 636 | 2,989 | 102.59 | 7.983 / 14.479 / 18.556 ms |
+| M5 Max, 128 GB | 2,000 / 2,124 | 1,989 | 54.18 | 15.117 / 22.123 / 148.094 ms |
+
+Raw [M1 512](artifacts/v2-final-m1-512.json), [M1 2,000](artifacts/v2-final-m1-2000.json),
+[M5 512](artifacts/v2-final-m5-512.json) and [M5 2,000](artifacts/v2-final-m5-2000.json)
+results include CPU stages and resource counts. These are separate desktop-host runs, not
+controlled hardware rankings. The final M5 run was unusually variable, including substantial
+GPU-completion waiting; no root cause was established. It would be misleading to hide that
+run or infer the M1 is categorically faster. The maximum factory setting does **not** meet a
+stable 60 FPS target on either host in these final runs. Presentation/compositor costs and
+GPU timestamp-query execution times are not measured.
+
+The final M5 static runs sampled nonzero RSS after two seconds at approximately 109–154 MiB
+(512 load) and 172–352 MiB (2,000 load); the raw sample records are authoritative. One zero
+sample at process termination is marked unavailable and excluded from the range. These ranges
+do not attribute bytes to a particular allocator. The earlier longer static 6,000-frame v2 run
+retained a recurring 138–171 MiB RSS range. A final 1,800-frame rapid-flight streaming run
+sampled 131–168 MiB over 5.72 wall seconds and ended normally. These finite traces, plus the isolated UI reproducer,
+support bounded observed reuse; they do not establish multi-hour memory stability.
+
+### Strategic flight and final input validation
+
+The detached survey controller owns camera state, not the suit. A real 196-frame injected-key
+test flew **373.92 m**, gained **264.40 m** altitude, generated 748 chunks in total and retained
+at most 169 chunk slots with eight jobs pending. It checks the unchanged player position every
+frame, Home overview, G return and the F10 alias. It passed on both development Macs. The
+[flight result](artifacts/v2-flight-test.json) is separate from the unchanged 332-frame mining/
+building/save/load [input scenario](artifacts/v2-input-test.json).
+
+Fast-flight testing also motivated a lifetime correction: moving the LOD request every frame
+could repeatedly cancel partial ring sets. Center changes now coalesce until the current four
+rings finish; seed/settings changes still cancel incompatible sets. The regression crosses a
+snap cell every frame and verifies completed swaps and bounded handles. Edge fog follows the
+active ring center, so an offset survey camera cannot reveal the square landscape boundary.
+
+The final [suite log](artifacts/v2-tests.log) includes seven headless suites, three bounded GPU
+tests, renderer smoke, actual flight and normal gameplay input, and launch-option load checks.
+
+### Streaming and integration findings
+
+- The revised world test generated 6,799 chunks with at most 289 slots and eight outstanding
+  jobs. Flat-floor, climate, terrain range, negative-coordinate, edit and shared-edge checks pass.
+- The horizon test balances **28 GPU uploads with 28 releases**, retains at most eight meshes
+  during a staged swap, and has zero live meshes after shutdown. Stationary requests do no rebuild.
+- New boundary probes exposed a real 10.44 m detail-to-LOD height underlap, exceeding the old
+  8 m detail skirt. Increasing its depth to 32 m fixed the sampled opening without adding vertices.
+  The distant-ring skirts remain 64 m. This was a mesh integration defect, not a memory leak.
+- A launch integration defect let the UI's default load of 512 overwrite `--load 32` and
+  `--load 2000` on the first frame. Benchmark JSON exposed the actual load. Initializing the UI
+  load from the parsed option fixed it; graphical load measurements were rerun with assertions
+  on the reported load and entity count. The initial mislabeled attempts are not used as results.
+- Detailed generation uses two isolated workers. Horizon-ring mesh construction currently runs
+  on the main thread, one ring per normal frame, and can produce travel-time spikes. A worker
+  pool for those larger jobs is future work; the language's isolated-thread model did not
+  automatically parallelize this part of the renderer.
+
+### What this says about Goose
+
+**Measured facts:** entity and variable-slice pools survive repeated independent growth,
+destruction and reuse; flat job/result messages support bounded streaming; no project-native
+C/C++ or general-purpose native heap was added. Scoped mesh/search scratch does not require
+a manually traversed ownership tree. The UI/native resource-retirement workaround is still
+necessary in the pinned backend and remains distinct from Goose-pool behavior.
+
+**Engineering judgment:** Goose helps express where storage lives and when temporary work
+ends. It solves the collection-ownership problem here through separate reusable slice pools;
+it does not design logical entity identity, resource conservation or a fast renderer for us.
+Generational handles, explicit reconstruction for saves and cache invalidation remain engine
+responsibilities. Relative references and position-independent serialization are useful for
+finished data images, but an active pool containing ordinary slices is not automatically a
+portable save file. Thread isolation makes races easier to avoid and message payload costs
+visible; it also requires explicit job boundaries and can make large mesh transfers expensive.
+
+The strongest practical costs remain a young ecosystem, missing/misleading diagnostics,
+version-sensitive native integration, limited live memory instrumentation and the absence of
+an official formatter in the pinned release. The project is evidence that Goose can host this
+engine architecture. It is not evidence that Goose itself makes frame rates higher than C++,
+Rust, or another implementation of the same algorithms.
+
+## Original-workload recorded deterministic results
 
 The following values come from the post-optimization debug run in
 `artifacts/optimization-tests.log`. They are observations of these fixtures, not throughput
