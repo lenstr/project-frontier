@@ -24,7 +24,7 @@ for name in entities world gameplay persistence telemetry showcase free_flight m
   "build/${name}_test"
 done
 if [ "$mode" = --graphics ]; then
-  for name in dev_panel horizon render_cache; do
+  for name in dev_panel horizon horizon_motion shadow_boundary render_cache; do
     "$compiler" build "tests/${name}_test.goose" -o "build/${name}_test" --debug
     "build/${name}_test"
   done

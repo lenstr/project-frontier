@@ -7,7 +7,16 @@ import os;
 import gfx;
 import .types;
 
-struct Mesh { vertices: gfx::Buffer, count: i64, casts_shadow: bool = true }
+struct Mesh {
+    vertices: gfx::Buffer,
+    count: i64,
+    casts_shadow: bool = true,
+    receives_shadow: bool = true,
+    // Zero is opaque, positive fades out, negative fades in with the same mask.
+    dissolve: f32 = 0.0,
+}
+
+struct TransitionUniform { params: float4 }
 
 struct CameraUniform { view_proj: gfx::mat4, light_view_proj: gfx::mat4 }
 
@@ -38,6 +47,8 @@ var stream_radius: f32 = 112.0;
 var fog_clear: f32 = 140.0;
 var visibility: f32 = 1600.0;
 var horizon_edge: f32 = 2048.0;
+var detached_shadows = false;
+var shadow_anchor: float3;
 var horizon_center: float3;
 
 fn triangle(out: ft::Vertex[>..]&, a: float3, b: float3, c: float3, col: float4) {
@@ -270,9 +281,12 @@ fn init() {
                 vec4 distances;
                 vec4 terrain_center;
             };
+            layout(set = 3, binding = 1) uniform Transition {
+                vec4 transition;
+            };
             layout(location = 0) out vec4 result;
             float shadow() {
-                if (params.y < 0.5) {
+                if (params.y < 0.5 || transition.y < 0.5) {
                     return 1.0;
                 }
                 vec3 p = shadow_position.xyz / shadow_position.w;
@@ -289,9 +303,21 @@ fn init() {
                         value += texture(shadow_map, vec3(uv + vec2(x, y) * texel, p.z - bias));
                     }
                 }
-                return 0.35 + 0.65 * value / 9.0;
+                // Fade the finite shadow map at its border instead of exposing a square.
+                float border = min(min(uv.x, 1.0 - uv.x), min(uv.y, 1.0 - uv.y));
+                float coverage = smoothstep(0.0, 0.12, border);
+                coverage *= smoothstep(0.0, 0.08, p.z) * (1.0 - smoothstep(0.92, 1.0, p.z));
+                return mix(1.0, 0.35 + 0.65 * value / 9.0, coverage);
             }
             void main() {
+                float noise = fract(dot(floor(gl_FragCoord.xy), vec2(0.75487766, 0.56984029)));
+                if (transition.x > 0.0 && noise < transition.x) {
+                    discard;
+                }
+                if (transition.x < 0.0 && noise >= -transition.x) {
+                    discard;
+                }
+
                 vec3 n = normalize(norm);
                 float daylight = params.x;
                 float visibility = shadow();
@@ -416,6 +442,8 @@ fn init() {
 }
 
 fn draw_meshes(meshes: const Mesh[:], dynamic_count: i64, shadow_pass: bool) {
+    var dissolve: f32 = 2.0;
+    var receives_shadow = false;
     for m in meshes {
         if shadow_pass && !m.casts_shadow {
             continue;
@@ -423,11 +451,21 @@ fn draw_meshes(meshes: const Mesh[:], dynamic_count: i64, shadow_pass: bool) {
         if m.count <= 0 || m.vertices.id == 0 {
             continue;
         }
+        if !shadow_pass && (m.dissolve != dissolve || m.receives_shadow != receives_shadow) {
+            dissolve = m.dissolve;
+            receives_shadow = m.receives_shadow;
+            gfx::uniforms(gfx::FRAGMENT, 1, TransitionUniform {
+                float4 { dissolve, if receives_shadow { 1.0 } else { 0.0 }, 0.0, 0.0 },
+            });
+        }
         gfx::bind_vertex_buffer(m.vertices);
         gfx::draw(m.count);
         draw_calls++;
     }
     if dynamic_count > 0 {
+        if !shadow_pass && (dissolve != 0.0 || !receives_shadow) {
+            gfx::uniforms(gfx::FRAGMENT, 1, TransitionUniform { float4 { 0.0, 1.0, 0.0, 0.0 } });
+        }
         gfx::bind_vertex_buffer(dynamic_buffer);
         gfx::draw(dynamic_count);
         draw_calls++;
@@ -467,12 +505,18 @@ fn draw_scene(
     let dusk: f32 = 1.0 - dusk_t * dusk_t * (3.0 - 2.0 * dusk_t);
     let daylight: f32 = clamp(sin(angle) * 2.2 + 0.23, 0.0, 1.0);
     let horizontal_forward = normalize(float3 { target.x - eye.x, 0.0, target.z - eye.z });
-    let focus = float3 { target.x, target.y - 1.2, target.z } + horizontal_forward * ft::splat(40.0);
+    let grounded_target = if detached_shadows { shadow_anchor } else { float3 { target.x, target.y - 1.2, target.z } };
+    let focus = grounded_target + horizontal_forward * ft::splat(40.0);
     let light_eye = focus + sun * ft::splat(120.0);
     let up_axis = float3 { 0.0, 1.0, 0.0 };
     let light_projection = gfx::ortho(-80.0, 80.0, -80.0, 80.0, 1.0, 260.0);
     let light_view_proj = gfx::mul(light_projection, gfx::look_at(light_eye, focus, up_axis));
-    let projection = gfx::perspective(0.95993, aspect, 0.08, 3200.0);
+    // Cover the square horizon's corners and high survey viewpoints as well.
+    let far_clip = max(3200.0, horizon_edge * 1.8 + abs(eye.y));
+    // Survey has no nearby suit geometry; a one-metre near plane preserves
+    // depth precision when the far plane grows to tens of kilometres.
+    let near_clip: f32 = if horizon_edge > 4096.0 { 1.0 } else { 0.08 };
+    let projection = gfx::perspective(0.95993, aspect, near_clip, far_clip);
     let camera = CameraUniform {
         gfx::mul(projection, gfx::look_at(eye, target, up_axis)),
         light_view_proj,

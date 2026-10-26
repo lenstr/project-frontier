@@ -58,6 +58,9 @@ fn measure_travel() {
     assert(horizontal_m > 200.0);
     assert(climb_m > 150.0);
     assert(generated_after_travel > generated_at_takeoff);
+    let camera_cx = floor(flight::eye.x / 32.0) as i64;
+    let camera_cz = floor(flight::eye.z / 32.0) as i64;
+    assert(world::find(camera_cx, camera_cz) >= 0);
 }
 
 fn verify_home() {

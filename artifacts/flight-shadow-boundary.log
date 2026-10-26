@@ -1,0 +1,6 @@
+parsed ok: 562 top-level declarations, 8 file(s)
+typechecked ok: 309 specialization(s), 29 struct/0 enum instance(s); optimized -O2: 102 inlined, 0 base case(s), 44 folded, 105 propagated, 0 tail loop(s), 0 reassociated
+bce: elided 26/26 index and 0/0 slice checks
+wrote /Users/lenstr/.goose/build/prog/shadow_boundary_test-1a15541c/shadow_boundary_test.c (453827 bytes)
+built build/shadow_boundary_test
+shadow_boundary PASS: fallback equals unshadowed reference; detail retains cast shadows

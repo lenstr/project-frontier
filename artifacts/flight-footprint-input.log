@@ -1,0 +1,21 @@
+FLIGHT INPUT PLAYTEST PASS {
+  "passed": true,
+  "frames": 196,
+  "camera_distance_m": 373.91876,
+  "camera_horizontal_m": 264.40067,
+  "altitude_gain_m": 264.40033,
+  "maximum_altitude_m": 399.07544,
+  "home_horizontal_m": 80.0,
+  "player_unchanged": true,
+  "generated_before": 169,
+  "generated_at_takeoff": 177,
+  "generated_after_travel": 335,
+  "generated_final": 480,
+  "chunk_slots_peak": 169,
+  "chunk_slots_limit": 289,
+  "pending_jobs_peak": 4,
+  "f10_alias_checked": true,
+  "actions": "G, boosted forward and ascent, Home, G return, F10 enter, F10 return"
+}
+
+FRONTIER rendered 196 frames; 124 entities; 169 chunks; triangles=510093 screenshot=flight.png

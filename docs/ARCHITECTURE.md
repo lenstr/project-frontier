@@ -22,7 +22,7 @@ packages provide the GPU/window/input interface, immediate-mode text/UI and PCM 
 | `src/telemetry.goose` | Bounded frame history, measured CPU stages and sampled pool counters |
 | `src/memory.goose` | Coalesced main-thread page-release requests, explicit frame boundary and result counters |
 | `src/showcase.goose` | Finite-input 32–2,000 entity colony, ownership and resource-preserving resizing |
-| `src/free_flight.goose` | Detached camera motion and projected streaming focus, independent of player state |
+| `src/free_flight.goose` | Detached camera motion and camera-ground streaming focus, independent of player state |
 | `src/flight_playtest.goose` | Real injected-input survey-flight integration driver |
 | `src/sound.goose` | Procedural sound samples and official audio API calls |
 | `src/types.goose` | Shared vertex format and small numeric helpers |
@@ -98,15 +98,28 @@ builds ridges, amber terraces, fungal basins and a dry salt channel. Hashed 384 
 spires or craters. Flat landing/district masks override those features; a 40 m wide approach
 along the initial camera forward axis connects them, with a smooth 16 m shoulder.
 
-`horizon` adds four non-shadow-casting terrain rings with 8/16/32/64 m base cells. Landmarks
-receive local refinement. The center snaps to 64 m cells. An unchanged request does no work;
-a changed request builds at most one ring per ordinary frame and swaps all four together.
+`horizon` provides six non-shadow-casting terrain rings with 8/16/32/64/128/256 m base cells.
+Walking uses the inner four rings; survey flight extends coverage to 12,288 m, increasing in
+1,024 m steps with altitude up to 16,384 m. Only cells up to 64 m refine landmarks, bounding
+the cost of the outer landscape. The camera far clip covers the square terrain corners and altitude.
+The center snaps to 256 m cells, keeping every ring aligned to the world grid. An unchanged request does no work. A dedicated Goose worker
+receives one flat ring job at a time and returns inline vertex data through a bounded typed queue.
+Ordinary frames only poll results and upload at most one ring; they never wait for generation.
+Initial loading and shutdown explicitly drain pending work. The complete set transitions over 350 ms with complementary screen-door masks; the previous
+set occupies staging storage until the fade ends, so the twelve-mesh bound still holds.
+The outer 35% of each ring morphs to its parent grid, including skirt tops. A world-anchored
+depth bias replaces the moving radial depression; flat construction pads keep only 15 cm of
+bias. Detached detail chunks fade at their outer boundary and for 350 ms after arrival.
 Center changes during a build are coalesced: the current set finishes, then follows the newest
 center. This prevents fast flight from cancelling every partial set. Seed/detail/distance
-changes still cancel incompatible work. Fog fades by distance to the active ring center and
+changes reject incompatible results by generation ticket. Queue-copy and GPU-upload times
+are measured separately from worker CPU time in the developer panel. Fog fades by distance to the active ring center and
 its square boundary, rather than assuming the camera is centered inside the rings.
-Active and staging sets own at most eight GPU meshes. Skirts and a buried overlap hide LOD
-seams. Distant terrain omits fine player edits; detailed chunks preserve and display them.
+Active and staging sets own at most twelve GPU meshes. The innermost ring includes a buried
+central fallback so pending detail chunks cannot leave a hole. Skirts and a buried overlap hide LOD
+seams. Coarse fallback neither casts nor receives the local shadow map, preventing the detailed
+terrain sheet from casting a dark rectangle onto the buried mesh. Shadow coverage fades at
+map borders, and survey shadows use the grounded streaming focus. Distant terrain omits fine player edits; detailed chunks preserve and display them.
 
 `world::height` samples the procedural field plus edits independently of residency and follows
 the same diagonal split as the mesh. Collision and navigation therefore work before a chunk's
@@ -159,8 +172,10 @@ small input values; it cannot mutate player or simulation state. The application
 WASD, Q/E, Shift, mouse look/wheel and Home into this controller. Level movement keeps surveying
 predictable, with altitude controlled separately. The camera stays above terrain.
 
-The application projects a bounded look-ahead point onto terrain for detail streaming, LOD
-requests and scene visibility. The suit remains at its original location, so construction,
+Detail streaming, LOD requests and scene visibility follow the camera's X/Z ground footprint,
+independently of yaw, pitch and altitude. A center-screen ground intersection previously moved
+residency up to 600 m ahead, outside the entire detailed region, leaving the camera's own ground
+coarse. Looking around no longer relocates or evicts the terrain below the pilot. The suit remains at its original location, so construction,
 mining and cargo transfer controls are suspended during flight. Production continues. Leaving
 flight restores the third-person camera without moving the suit; loading returns to suit mode.
 Camera survey state is deliberately not part of the expedition save schema.

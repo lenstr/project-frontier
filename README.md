@@ -87,6 +87,7 @@ The public-API progression test completes this loop without resource grants.
 Survey flight starts about 130 m above the base, with the entire district in view. The suit
 stays in place and the colony keeps running. Detailed chunks and distant terrain follow the
 camera's view; flying does not teleport the player or edit the save. G returns to the suit.
+Flight terrain covers 12–16 km, with background mesh generation and gradual LOD transitions.
 The HUD shows altitude, speed and controls; the developer panel also has flight buttons and
 a 10–300 m/s speed slider. Mouse wheel adjusts that speed, and Shift multiplies it by four.
 
@@ -168,7 +169,7 @@ and `audio` packages provide SDL3/Metal/Vulkan/D3D platform facilities. **Projec
 zero lines.** The repository contains no custom heap allocator.
 
 The default detailed terrain window is 13×13 chunks (416 m across). Two isolated workers stream
-the detailed heightfield; four cached LOD rings extend the visible landscape roughly 2 km. Ridges,
+the detailed heightfield; cached LOD rings extend the landscape roughly 2 km on foot and 12–16 km in survey flight. Ridges,
 terraced mesas, fungal basins, salt channels, spires and craters share one climate function.
 The landing area and its approach to the factory district stay walkable. Fog begins at 140 m
 by default and has a 1,600 m visibility scale; both are editable live.

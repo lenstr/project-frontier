@@ -19,6 +19,76 @@ establish production readiness for a large voxel game, a many-thousand-machine f
 long-lived commercial engine. Language/compiler diagnostics, profiling support and scaling
 algorithms need further work.
 
+## Survey camera residency follow-up
+
+Further player testing showed detailed terrain only around the center-screen ray, with coarse
+terrain below the camera. The cause was the streaming focus: its projected look-ahead reached
+600 m, while detailed terrain extended only 192 m at the default setting and started fading
+at 106 m. The previous expansion of distant LOD did not fix this residency error.
+
+Residency and scene visibility now follow the camera's X/Z position projected onto the ground.
+Rotating or pitching the camera does not move the loaded area. The camera tile remains inside
+the opaque detail region even at the smallest radius. The flight regression covers 640
+combinations of altitude, negative/positive coordinates, pitch and yaw. The actual input-driven
+flight test also checks that the tile directly under the camera remains resident after its
+boosted ascent and travel. The complete graphical/gameplay suite passes. This corrects where the
+finite detailed region is placed; it does not make the entire 12–16 km horizon full-detail.
+Evidence: [complete tests](artifacts/flight-footprint-tests.log) and
+[camera-ground residency input test](artifacts/flight-footprint-input.log).
+
+## Survey-flight LOD correction: 2026-10-26
+
+Player testing exposed a visible landscape cutoff and two waves of detail changes in flight.
+The previous 1.5–2.4 km horizon and 3.2 km camera clip were insufficient from altitude. Ring
+meshes also rebuilt synchronously on the main thread. These were implementation problems,
+not limitations imposed by Goose.
+
+Survey coverage now starts at 12,288 m and grows with altitude to 16,384 m. Two outer rings
+use 128/256 m cells; walking retains its shorter horizon. All ring grids share a world-aligned
+256 m center snap. Parent-grid height morphs, stationary depth bias, a 350 ms whole-set dissolve
+and detail-chunk arrival/edge dissolves replace abrupt changes. Near/far camera planes preserve
+depth precision for survey views. Coarse terrain still omits fine player edits and vegetation.
+
+One Goose worker receives flat jobs and returns a flat, variable-size vertex result. It owns
+no GPU handles and shares no mutable world state. Queue capacity is two, with only one job
+outstanding. The main loop polls without waiting and uploads one result at a time. Tickets
+reject stale settings/seed results. Loading and shutdown explicitly wait; ordinary flight does
+not. During a dissolve, old meshes occupy staging storage, preserving a twelve-mesh upper bound.
+Building the variable-size result inline avoids an implicit-copy compiler error encountered
+when assigning an existing growable vertex array to its inline field.
+
+Measured locally with the pinned compiler on the development M5 Max:
+
+- The full gameplay/graphics suite passed. A 16,384 m test produced 428,268 horizon triangles;
+  upload/release counts balanced after shutdown. Parent-edge heights agree, and rendering two
+  complementary half-coverage copies is byte-identical to the opaque reference image.
+- A separate 1280×800 terrain-only moving-camera test completed three whole sets and 101 fade
+  frames over 1,162 frames. The last 240 measured frames had p50/p95/p99 of 1.54/4.37/5.65 ms;
+  the maximum measured frame was 16.44 ms and the maximum main-thread LOD update was 4.16 ms.
+  Its deliberate 4 ms submission pacing is outside those frame costs. This excludes gameplay,
+  vegetation and HUD, and is not a full-game FPS claim.
+- The real 1920×1080 scripted flight test with synchronous GPU completion passed: 185 sampled
+  frames, p50/p95/p99 3.33/5.47/6.88 ms. Frame-based input scripts now keep their deterministic
+  timestep when timing collection is enabled; previously combining those flags invalidated the
+  travel assertions by switching the script to wall-clock simulation time.
+
+A subsequent player report described a dark rectangle following the camera. Inspection found
+hard shadow-map borders, an airborne shadow focus in survey mode, and the buried fallback
+receiving shadows from the detailed terrain sheet above it. The receiver flag now excludes
+coarse terrain from that local map, border coverage fades smoothly, and survey shadow focus
+is grounded. A rendered regression confirms the fallback matches a shadow-disabled reference
+while detailed terrain still shows the occluder's cast shadow. The player's exact frame was
+not captured, so correspondence to that reported rectangle still needs player confirmation.
+
+Evidence: [full tests](artifacts/flight-horizon-tests.log),
+[sustained terrain motion](artifacts/flight-horizon-sustained.log),
+[real flight timing](artifacts/flight-horizon-motion.log),
+[shadow receiver regression](artifacts/flight-shadow-boundary.log), and
+[800 m terrain capture](artifacts/flight-horizon-800m.png).
+These are bounded regression measurements, not proof of zero visible popping at every speed
+or stable OS/GPU residency over a long session. Worker CPU, queue calls and GPU uploads are
+reported separately in the developer panel for further playtesting.
+
 ## Toolchain upgrade: 2026-10-26
 
 The current project pin is upstream commit `a108677d300cb0e8bbb842c35a353abe67a20c6c`,

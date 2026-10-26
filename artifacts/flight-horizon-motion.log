@@ -1,0 +1,51 @@
+FLIGHT INPUT PLAYTEST PASS {
+  "passed": true,
+  "frames": 196,
+  "camera_distance_m": 373.91876,
+  "camera_horizontal_m": 264.40067,
+  "altitude_gain_m": 264.40033,
+  "maximum_altitude_m": 399.07544,
+  "home_horizontal_m": 80.0,
+  "player_unchanged": true,
+  "generated_before": 169,
+  "generated_at_takeoff": 177,
+  "generated_after_travel": 537,
+  "generated_final": 748,
+  "chunk_slots_peak": 169,
+  "chunk_slots_limit": 289,
+  "pending_jobs_peak": 4,
+  "f10_alias_checked": true,
+  "actions": "G, boosted forward and ascent, Home, G return, F10 enter, F10 return"
+}
+
+{
+  "synchronous_gpu_completion": true,
+  "resolution": [1920,1080],
+  "frames": 185,
+  "average_fps": 286.3165458671479,
+  "frame_ms_p50": 3.326000180095434,
+  "frame_ms_p95": 5.47399977222085,
+  "frame_ms_p99": 6.875000428408384,
+  "simulation_ms_p95": 0.001,
+  "render_cpu_ms_p95": 0.22799987345933914,
+  "mesh_cpu_ms_p95": 2.1819998510181904,
+  "ui_cpu_ms_p95": 0.14100037515163422,
+  "gpu_completion_wait_ms_p95": 3.1220000237226486,
+  "entity_slots": 124,
+  "active_entities": 124,
+  "chunk_slots": 169,
+  "generated_chunks": 748,
+  "generation_cpu_total_ms": 12.543999999999969,
+  "queue_calls_total_ms": 0.33100000000000024,
+  "quality_radius": 6,
+  "horizon_meshes": 4,
+  "horizon_triangles": 132622,
+  "submitted_triangles": 914963,
+  "draw_calls": 353,
+  "dynamic_gpu_capacity_bytes": 1708800,
+  "showcase_load": 0,
+  "developer_panel_mode": 0,
+  "shadows": true
+}
+
+FRONTIER rendered 196 frames; 124 entities; 169 chunks; triangles=914963 screenshot=flight.png

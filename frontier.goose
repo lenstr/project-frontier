@@ -903,7 +903,11 @@ fn developer_actions() {
     render::wireframe = dev::settings.show_wireframe;
     render::fog_clear = dev::settings.fog_start;
     render::visibility = dev::settings.fog_distance;
-    render::horizon_edge = clamp(dev::settings.fog_distance * 1.28, 1536.0, 2432.0);
+    render::horizon_edge = if flight::enabled {
+        flight::horizon_distance(world::height(eye.x, eye.z))
+    } else {
+        clamp(dev::settings.fog_distance * 1.28, 1536.0, 2432.0)
+    };
     scene::inspector_target = dev::pinned;
     scene::detached_view = flight::enabled;
     scene::view_center = streaming_focus();
@@ -945,7 +949,8 @@ fn run_frames() -> i64 {
         if !gfx::frame() {
             break;
         }
-        let dt: f32 = if automated && !benchmark {
+        // Input scripts are frame-based even when collecting wall-clock timings.
+        let dt: f32 = if playtest || flight_test || (automated && !benchmark) {
             1.0 / 60.0
         } else {
             clamp(gfx::delta_time() as f32, 0.001, 0.05)
@@ -1168,7 +1173,11 @@ fn main() {
     scene::sync(world::MAX_CHUNKS);
     scene::detached_view = flight::enabled;
     scene::view_center = streaming_focus();
-    horizon::update(streaming_focus(), radius * 32.0, render::horizon_edge, 4);
+    if flight::enabled {
+        render::horizon_edge = flight::horizon_distance(world::height(eye.x, eye.z));
+    }
+    horizon::update(streaming_focus(), radius * 32.0, render::horizon_edge, 1);
+    horizon::drain();
     dev::settings.day_phase = sim::day;
     let drawn = run_frames();
     if automated {

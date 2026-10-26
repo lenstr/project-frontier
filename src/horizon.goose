@@ -1,4 +1,4 @@
-// Four bounded terrain annuli extend the planet beyond detailed streaming.
+// Six bounded terrain annuli extend the planet beyond detailed streaming.
 // CPU mesh scratch dies per ring; active GPU rings swap atomically as a set.
 namespace horizon;
 import std;
@@ -10,13 +10,13 @@ import .types;
 import .world;
 import .render;
 
-let RINGS = 4;
-let SNAP: f32 = 64.0;
+let RINGS = 6;
+let SNAP: f32 = 256.0;
 let MIN_DISTANCE: f32 = 1536.0;
-let MAX_DISTANCE: f32 = 2432.0;
+let MAX_DISTANCE: f32 = 16384.0;
 
-var cache: render::Mesh[4];
-var staging: render::Mesh[4];
+var cache: render::Mesh[6];
+var staging: render::Mesh[6];
 var triangles: i64 = 0;
 var mesh_count: i64 = 0;
 var generation_ms: f64 = 0.0;
@@ -24,6 +24,9 @@ var generation_total_ms: f64 = 0.0;
 var ready = false;
 var active_center: float3;
 var building = false;
+var fading = false;
+var fade_started: f64 = 0.0;
+let FADE_SECONDS: f64 = 0.35;
 var pending_rings: i64 = 0;
 var generated_rings: i64 = 0;
 var rebuilds: i64 = 0;
@@ -37,14 +40,40 @@ var requested_near: f32 = 0.0;
 var requested_far: f32 = 0.0;
 var requested_seed: u32 = 0;
 
+struct MeshJob {
+    center: float3,
+    near_radius: f32,
+    far_distance: f32,
+    seed: u32,
+    ticket: i64,
+    ring: i64,
+    stop: bool,
+}
+
+struct MeshResult {
+    ticket: i64,
+    ring: i64,
+    generate_ns: i64,
+    vertices: ft::Vertex[],
+}
+
+var worker_id: i64 = 0;
+var worker_running = false;
+var worker_busy = false;
+var ticket: i64 = 0;
+var transfer_ms: f64 = 0.0;
+var upload_ms: f64 = 0.0;
+var stale_results: i64 = 0;
+
 fn ring_step(ring: i64) -> f32 {
-    let steps: f32[4] = [8.0, 16.0, 32.0, 64.0];
+    let steps: f32[6] = [8.0, 16.0, 32.0, 64.0, 128.0, 256.0];
     steps[ring]
 }
 
 fn ring_inner(ring: i64, near_radius: f32, far_distance: f32) -> f32 {
     if ring == 0 {
-        return max(0.0, floor((near_radius - 96.0) / 8.0) * 8.0);
+        // Keep a buried fallback beneath detail chunks while they stream in.
+        return 0.0;
     }
     if ring == 1 {
         return 512.0;
@@ -52,7 +81,13 @@ fn ring_inner(ring: i64, near_radius: f32, far_distance: f32) -> f32 {
     if ring == 2 {
         return 1024.0;
     }
-    min(1792.0, far_distance)
+    if ring == 3 {
+        return min(1792.0, far_distance);
+    }
+    if ring == 4 {
+        return min(4096.0, far_distance);
+    }
+    min(8192.0, far_distance)
 }
 
 fn ring_outer(ring: i64, far_distance: f32) -> f32 {
@@ -65,15 +100,53 @@ fn ring_outer(ring: i64, far_distance: f32) -> f32 {
     if ring == 2 {
         return min(1792.0, far_distance);
     }
+    if ring == 3 {
+        return min(4096.0, far_distance);
+    }
+    if ring == 4 {
+        return min(8192.0, far_distance);
+    }
     far_distance
 }
 
+fn fallback_height(x: f32, z: f32) -> f32 {
+    // Flat construction pads need only a small depth bias; buildings stay seated.
+    let burial = 0.15 + 3.85 * world::natural_weight(x, z);
+    world::base_height(x, z) - burial
+}
+
 fn surface(x: f32, z: f32, center: float3, near_radius: f32) -> float3 {
+    // A constant burial keeps the same world vertex stationary when the
+    // streaming center moves. A moving radial depression produced visible waves.
+    float3 { x, fallback_height(x, z), z }
+}
+
+// Interpolate the parent grid with the same triangle diagonal as terrain.
+fn parent_height(x: f32, z: f32, step: f32) -> f32 {
+    let gx = floor(x / step) * step;
+    let gz = floor(z / step) * step;
+    let tx = (x - gx) / step;
+    let tz = (z - gz) / step;
+    let a = fallback_height(gx, gz);
+    let b = fallback_height(gx, gz + step);
+    let c = fallback_height(gx + step, gz + step);
+    let d = fallback_height(gx + step, gz);
+    if tz >= tx {
+        a + (c - b) * tx + (b - a) * tz
+    } else {
+        a + (d - a) * tx + (c - d) * tz
+    }
+}
+
+fn lod_surface(x: f32, z: f32, center: float3, near_radius: f32, step: f32, outer: f32) -> float3 {
+    var point = surface(x, z, center, near_radius);
     let distance = max(abs(x - center.x), abs(z - center.z));
-    // The overlap is deliberately buried, so detailed two-metre facets win
-    // the depth test. Detail skirts bridge its edge while it eases back up.
-    let burial = 4.0 * (1.0 - world::smooth(near_radius + 16.0, near_radius + 80.0, distance));
-    float3 { x, world::base_height(x, z) - burial, z }
+    let blend = world::smooth(outer * 0.65, outer, distance);
+    if blend > 0.0 {
+        let parent = parent_height(x, z, step * 2.0);
+        point.y += (parent - point.y) * blend;
+    }
+    point
 }
 
 fn face(out: ft::Vertex[>..]&, a: float3, b: float3, c: float3) {
@@ -93,9 +166,19 @@ fn edge_skirt(out: ft::Vertex[>..]&, a: float3, b: float3) {
     face(out, a, b + drop, a + drop);
 }
 
+fn boundary_surface(
+    x: f32, z: f32, center: float3, near_radius: f32, step: f32, outer: f32,
+) -> float3 {
+    if step > 0.0 {
+        return lod_surface(x, z, center, near_radius, step, outer);
+    }
+    surface(x, z, center, near_radius)
+}
+
 fn boundary(
     out: ft::Vertex[>..]&, center: float3, radius: f32,
     step: f32, near_radius: f32, view_center: float3,
+    morph_step: f32 = 0.0, morph_outer: f32 = 0.0,
 ) {
     if radius <= 0.0 {
         return;
@@ -109,23 +192,23 @@ fn boundary(
         let back = center.z + radius;
         edge_skirt(
             out,
-            surface(center.x + offset, front, view_center, near_radius),
-            surface(center.x + offset + step, front, view_center, near_radius),
+            boundary_surface(center.x + offset, front, view_center, near_radius, morph_step, morph_outer),
+            boundary_surface(center.x + offset + step, front, view_center, near_radius, morph_step, morph_outer),
         );
         edge_skirt(
             out,
-            surface(center.x + offset + step, back, view_center, near_radius),
-            surface(center.x + offset, back, view_center, near_radius),
+            boundary_surface(center.x + offset + step, back, view_center, near_radius, morph_step, morph_outer),
+            boundary_surface(center.x + offset, back, view_center, near_radius, morph_step, morph_outer),
         );
         edge_skirt(
             out,
-            surface(left, center.z + offset + step, view_center, near_radius),
-            surface(left, center.z + offset, view_center, near_radius),
+            boundary_surface(left, center.z + offset + step, view_center, near_radius, morph_step, morph_outer),
+            boundary_surface(left, center.z + offset, view_center, near_radius, morph_step, morph_outer),
         );
         edge_skirt(
             out,
-            surface(right, center.z + offset, view_center, near_radius),
-            surface(right, center.z + offset + step, view_center, near_radius),
+            boundary_surface(right, center.z + offset, view_center, near_radius, morph_step, morph_outer),
+            boundary_surface(right, center.z + offset + step, view_center, near_radius, morph_step, morph_outer),
         );
     }
 }
@@ -137,7 +220,8 @@ fn touches_feature(x: f32, z: f32, step: f32, fx: f32, fz: f32, radius: f32) -> 
 }
 
 fn refine_cell(x: f32, z: f32, step: f32) -> bool {
-    if step <= 8.0 {
+    // Distant landmarks are subpixel; refining them would scale with world area.
+    if step <= 8.0 || step > 64.0 {
         return false;
     }
     let feature = world::landmark(x + step * 0.5, z + step * 0.5);
@@ -147,11 +231,14 @@ fn refine_cell(x: f32, z: f32, step: f32) -> bool {
     touches_feature(x, z, step, -370.0, -307.0, 30.0)
 }
 
-fn cell(out: ft::Vertex[>..]&, x: f32, z: f32, step: f32, center: float3, near_radius: f32) {
-    let a = surface(x, z, center, near_radius);
-    let b = surface(x, z + step, center, near_radius);
-    let c = surface(x + step, z + step, center, near_radius);
-    let d = surface(x + step, z, center, near_radius);
+fn cell(
+    out: ft::Vertex[>..]&, x: f32, z: f32, step: f32, center: float3,
+    near_radius: f32, lod_step: f32, outer: f32,
+) {
+    let a = lod_surface(x, z, center, near_radius, lod_step, outer);
+    let b = lod_surface(x, z + step, center, near_radius, lod_step, outer);
+    let c = lod_surface(x + step, z + step, center, near_radius, lod_step, outer);
+    let d = lod_surface(x + step, z, center, near_radius, lod_step, outer);
     face(out, a, b, c);
     face(out, a, c, d);
 }
@@ -183,20 +270,20 @@ fn build_ring(
                 let subdivisions = (step / 8.0) as i64;
                 for zi in subdivisions {
                     for xi in subdivisions {
-                        cell(out, wx + xi * 8.0, wz + zi * 8.0, 8.0, center, near_radius);
+                        cell(out, wx + xi * 8.0, wz + zi * 8.0, 8.0, center, near_radius, step, outer);
                     }
                 }
                 let tile_center = float3 { wx + step * 0.5, 0.0, wz + step * 0.5 };
-                boundary(out, tile_center, step * 0.5, 8.0, near_radius, center);
+                boundary(out, tile_center, step * 0.5, 8.0, near_radius, center, step, outer);
             } else {
-                cell(out, wx, wz, step, center, near_radius);
+                cell(out, wx, wz, step, center, near_radius, step, outer);
             }
         }
     }
     // Different grid spacings share endpoints but have T junctions in between.
     // Buried walls cover any vertical interpolation difference at those joins.
-    boundary(out, center, inner, step, near_radius, center);
-    boundary(out, center, outer, step, near_radius, center);
+    boundary(out, center, inner, step, near_radius, center, step, outer);
+    boundary(out, center, outer, step, near_radius, center, step, outer);
     out
 }
 
@@ -228,6 +315,25 @@ fn refresh_stats() {
     }
 }
 
+thread_fn generate_worker() {
+    loop {
+        let job = qget<MeshJob>();
+        if job.stop {
+            break;
+        }
+        world::seed = job.seed;
+        let started = clock_ns();
+        var result = MeshResult {
+            ticket: job.ticket,
+            ring: job.ring,
+            generate_ns: 0,
+            vertices: build_ring(job.ring, job.center, job.near_radius, job.far_distance),
+        };
+        result.generate_ns = clock_ns() - started;
+        assert(qput(result));
+    }
+}
+
 fn init() {
     shutdown();
     requested_seed = world::seed;
@@ -235,24 +341,79 @@ fn init() {
     requested_far = 0.0;
     generation_ms = 0.0;
     generation_total_ms = 0.0;
+    transfer_ms = 0.0;
+    upload_ms = 0.0;
+    stale_results = 0;
     generated_rings = 0;
     rebuilds = 0;
     uploaded_meshes = 0;
     released_meshes = 0;
     peak_meshes = 0;
+    qlimit<MeshJob>(2);
+    qlimit<MeshResult>(2);
+    worker_id = thread_spawn(generate_worker);
+    worker_running = true;
+}
+
+fn accept(result: MeshResult&) {
+    worker_busy = false;
+    generation_ms = result.generate_ns / 1000000.0;
+    generation_total_ms += generation_ms;
+    if result.ticket != ticket {
+        stale_results++;
+        return;
+    }
+    assert(result.ring == pending_rings);
+    let started = clock();
+    staging[result.ring] = render::upload(result.vertices);
+    upload_ms += (clock() - started) * 1000.0;
+    staging[result.ring].casts_shadow = false;
+    staging[result.ring].receives_shadow = false;
+    if staging[result.ring].vertices.id != 0 {
+        live_meshes++;
+        uploaded_meshes++;
+        peak_meshes = max(peak_meshes, live_meshes);
+    }
+    pending_rings++;
+    generated_rings++;
+    assert(live_meshes <= RINGS * 2);
+    if pending_rings == RINGS {
+        fading = ready;
+        fade_started = clock();
+        for i in RINGS {
+            let previous = cache[i];
+            cache[i] = staging[i];
+            staging[i] = previous;
+        }
+        pending_rings = 0;
+        active_center = float3 { requested_x * SNAP, 0.0, requested_z * SNAP };
+        ready = true;
+        building = false;
+        rebuilds++;
+        refresh_stats();
+    }
 }
 
 fn update(center: float3, near_radius: f32, far_distance: f32, budget: i64) {
+    assert(worker_running);
+    if fading {
+        if clock() - fade_started < FADE_SECONDS {
+            return;
+        }
+        clear_staging();
+        fading = false;
+    }
     let cx = floor(center.x / SNAP) as i64;
     let cz = floor(center.z / SNAP) as i64;
     let near = clamp(floor(near_radius / 8.0) * 8.0, 32.0, 256.0);
     let far = clamp(floor(far_distance / 64.0) * 64.0, MIN_DISTANCE, MAX_DISTANCE);
     let settings_changed = requested_near != near || requested_far != far || requested_seed != world::seed;
     let moved = requested_x != cx || requested_z != cz;
-    // Finish an in-flight set before following the newest center. Cancelling
-    // every 64 m starved all four rings during fast survey flight.
-    if settings_changed || (moved && (!building || pending_rings == 0)) {
+    // Coalesce camera travel until the current complete set is ready. Only
+    // incompatible settings invalidate an outstanding result by its ticket.
+    if settings_changed || (moved && !building) {
         clear_staging();
+        ticket++;
         requested_x = cx;
         requested_z = cz;
         requested_near = near;
@@ -261,42 +422,57 @@ fn update(center: float3, near_radius: f32, far_distance: f32, budget: i64) {
         building = true;
     }
     generation_ms = 0.0;
-    if !building || budget <= 0 {
+    if budget <= 0 {
         return;
     }
-    let start = clock();
-    let origin = float3 { requested_x * SNAP, 0.0, requested_z * SNAP };
-    for job in min(budget, RINGS) {
-        if pending_rings >= RINGS {
-            break;
+    if worker_busy {
+        let started = clock();
+        var result, available = qpoll<MeshResult>();
+        transfer_ms += (clock() - started) * 1000.0;
+        if available {
+            accept(result);
         }
-        var vertices = build_ring(pending_rings, origin, requested_near, requested_far);
-        staging[pending_rings] = render::upload(vertices);
-        staging[pending_rings].casts_shadow = false;
-        if staging[pending_rings].vertices.id != 0 {
-            live_meshes++;
-            uploaded_meshes++;
-            peak_meshes = max(peak_meshes, live_meshes);
-        }
-        pending_rings++;
-        generated_rings++;
     }
-    generation_ms = (clock() - start) * 1000.0;
-    generation_total_ms += generation_ms;
-    assert(live_meshes <= RINGS * 2);
-    if pending_rings == RINGS {
-        for i in RINGS {
-            retire(cache[i]);
-            cache[i] = staging[i];
-            staging[i] = render::Mesh { .. };
-        }
-        pending_rings = 0;
-        active_center = origin;
-        ready = true;
-        building = false;
-        rebuilds++;
-        refresh_stats();
+    if building && !worker_busy {
+        let origin = float3 { requested_x * SNAP, 0.0, requested_z * SNAP };
+        let started = clock();
+        assert(qput(MeshJob {
+            center: origin,
+            near_radius: requested_near,
+            far_distance: requested_far,
+            seed: requested_seed,
+            ticket: ticket,
+            ring: pending_rings,
+            stop: false,
+        }));
+        transfer_ms += (clock() - started) * 1000.0;
+        worker_busy = true;
     }
+}
+
+// Blocking is reserved for initial loading, tests and shutdown, never flight frames.
+fn drain() {
+    while building || worker_busy {
+        if worker_busy {
+            var result = qget<MeshResult>();
+            accept(result);
+        }
+        if building {
+            update(float3 { requested_x * SNAP, 0.0, requested_z * SNAP }, requested_near, requested_far, 1);
+        }
+    }
+    if fading {
+        clear_staging();
+        fading = false;
+    }
+}
+
+fn fade_progress() -> f32 {
+    clamp((clock() - fade_started) / FADE_SECONDS, 0.001, 0.999) as f32
+}
+
+fn previous_meshes() -> render::Mesh[:] {
+    staging[..]
 }
 
 fn meshes() -> render::Mesh[:] {
@@ -304,6 +480,12 @@ fn meshes() -> render::Mesh[:] {
 }
 
 fn shutdown() {
+    if worker_running {
+        drain();
+        assert(qput(MeshJob { stop: true, .. }));
+        assert(thread_wait(worker_id));
+        worker_running = false;
+    }
     clear_staging();
     for i in RINGS {
         retire(cache[i]);

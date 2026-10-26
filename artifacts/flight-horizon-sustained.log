@@ -1,0 +1,2 @@
+Extracted from the final full graphics suite, tests/horizon_motion_test.goose
+horizon_motion PASS frames=1162 complete_sets=3 fade_frames=101 last240_p50_ms=1.5410003252327442 last240_p95_ms=4.371000453829765 last240_p99_ms=5.650999955832958 max_frame_ms=16.44300017505884 max_update_ms=4.1589997708797455 worker_cpu_ms=10428.428 queue_ms=3.6029978655278683 gpu_upload_ms=15.129001345485449 elapsed_ms=7729.106000158936

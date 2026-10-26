@@ -612,7 +612,10 @@ fn world_page() {
     metric("Terrain GPU meshes", count_text(scene::mesh_count), CYAN);
     metric("Horizon meshes / triangles", str(count_text(horizon::mesh_count), " / ", count_text(horizon::triangles)), IVORY);
     metric("Horizon rings pending", count_text(horizon::pending_rings), ORANGE);
-    milliseconds("Horizon generation / latest", horizon::generation_ms);
+    milliseconds("Horizon worker CPU / latest", horizon::generation_ms);
+    milliseconds("Horizon queue calls / cumulative", horizon::transfer_ms);
+    milliseconds("Horizon GPU uploads / cumulative", horizon::upload_ms);
+    metric("Horizon worker", if horizon::worker_busy { "Generating" } else { "Idle" }, CYAN);
     metric("Terrain and prop vertices", count_text(scene::terrain_vertices), IVORY);
     metric("Visible triangle submissions", count_text(render::triangles), IVORY);
     metric("Draw calls", count_text(render::draw_calls), IVORY);

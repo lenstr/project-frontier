@@ -23,6 +23,7 @@ let FERRITE = float4 { 0.824, 0.235, 0.353, 1.3 };
 let GLACITE = float4 { 0.561, 0.827, 1.0, 1.5 };
 var cached: render::Mesh[world::MAX_CHUNKS];
 var revisions: i64[world::MAX_CHUNKS];
+var uploaded_at: f64[world::MAX_CHUNKS];
 var terrain_vertices: i64 = 0;
 var mesh_count: i64 = 0;
 var last_seconds: f32 = 0.0;
@@ -407,6 +408,7 @@ fn sync(budget: i64) {
         var vertices = world::mesh(slot);
         decorate(vertices, slot);
         cached[slot] = render::upload(vertices);
+        uploaded_at[slot] = clock();
         revisions[slot] = world::chunks[slot].revision;
         built++;
     }
@@ -1173,14 +1175,41 @@ fn draw(
         render::octahedron(dynamic, p.pos, ft::splat(size), p.color, seconds * 3.0 + i);
     }
     var all_meshes: render::Mesh[>..] = [];
-    all_meshes.append(cached);
+    for slot in cached.len {
+        var detail = cached[slot];
+        if detached_view && slot < world::chunks.len && world::chunks[slot].active {
+            let chunk = world::chunks[slot];
+            let center = float3 { chunk.cx * 32.0 + 16.0, 0.0, chunk.cz * 32.0 + 16.0 };
+            let focus = visibility_center();
+            let distance = max(abs(center.x - focus.x), abs(center.z - focus.z));
+            let spatial = 1.0 - world::smooth(render::stream_radius * 0.55, render::stream_radius * 0.88, distance);
+            let arrival = clamp((clock() - uploaded_at[slot]) / 0.35, 0.0, 1.0) as f32;
+            let opacity = min(spatial, arrival);
+            if opacity <= 0.001 {
+                continue;
+            }
+            detail.dissolve = 1.0 - opacity;
+        }
+        all_meshes.push(detail);
+    }
     all_meshes.push(grass_mesh);
     all_meshes.push(rail_mesh);
+    let horizon_fade = if horizon::fading { horizon::fade_progress() } else { 0.0 };
+    if horizon::fading {
+        for old_mesh in horizon::previous_meshes() {
+            var previous = old_mesh;
+            previous.dissolve = horizon_fade;
+            all_meshes.push(previous);
+        }
+    }
     for far_mesh in horizon::meshes() {
         var distant = far_mesh;
         distant.casts_shadow = false;
+        distant.dissolve = -horizon_fade;
         all_meshes.push(distant);
     }
+    render::detached_shadows = detached_view;
+    render::shadow_anchor = visibility_center();
     render::horizon_center = if horizon::ready { horizon::active_center } else { visibility_center() };
     render::draw_scene(all_meshes, dynamic, eye, target, day, seconds, shadows);
 }

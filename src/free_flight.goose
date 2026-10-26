@@ -74,9 +74,15 @@ fn update(input: Input, delta: f32) {
     eye += velocity * scale(dt);
 }
 
+// Residency follows the camera's ground footprint, not its center-screen ray.
+// Looking toward the horizon must not evict the ground directly below the pilot.
 fn stream_focus(terrain_below: f32) -> float3 {
-    let forward = direction();
-    let height = max(eye.y - terrain_below, 0.0);
-    let look_distance = clamp(height / max(-forward.y, 0.15), 0.0, 600.0);
-    eye + forward * scale(look_distance)
+    float3 { eye.x, terrain_below, eye.z }
+}
+
+// Coarse terrain expands with survey altitude without growing detailed chunk pools.
+fn horizon_distance(terrain_below: f32) -> f32 {
+    let altitude = max(eye.y - terrain_below, 0.0);
+    let distance = max(12288.0, ceil(altitude * 6.0 / 1024.0) * 1024.0);
+    clamp(distance, 12288.0, 16384.0)
 }
