@@ -12,6 +12,7 @@ import .horizon;
 import .vegetation;
 import .visual_detail;
 import .showcase;
+import .colony_layout;
 
 let INK = float4 { 0.106, 0.137, 0.251, 1.0 };
 let NAVY = float4 { 0.169, 0.227, 0.400, 1.0 };
@@ -47,6 +48,132 @@ fn visibility_center() -> float3 {
         return view_center;
     }
     sim::player
+}
+
+// Fixed slot groups retain native meshes, never references into entity pools.
+// Nearby machines are animated every frame. Distant machine assemblies refresh
+// in bounded batches; robots, cargo and conveyor arrows always remain dynamic.
+let BUILDING_BATCH_SIZE = 64;
+let BUILDING_UPDATES = 6;
+struct BuildingStamp {
+    active: bool,
+    generation: u32,
+    kind: i64,
+    pos: float3,
+    yaw: f32,
+    powered: bool,
+}
+struct BuildingBatch {
+    mesh: render::Mesh,
+    dirty: bool,
+    count: i64,
+    center: float3,
+}
+var building_stamps: BuildingStamp[>..<] = [];
+var building_batches: BuildingBatch[>..<] = [];
+var building_cursor: i64 = 0;
+var building_uploads: i64 = 0;
+var building_releases: i64 = 0;
+var building_live_meshes: i64 = 0;
+
+fn building_stamp(slot: i64, eye: float3) -> BuildingStamp {
+    let e .= ecs::entities[slot];
+    if !e.alive || !sim::building(e.kind) || e.kind == sim::TOWER
+        || length(e.pos - visibility_center()) > visible_distance || length(e.pos - eye) < 60.0
+    {
+        return BuildingStamp { .. };
+    }
+    BuildingStamp { true, e.generation, e.kind, e.pos, e.yaw, e.powered }
+}
+
+fn retire_building(batch: BuildingBatch&) {
+    if batch.mesh.vertices.id != 0 {
+        render::release(batch.mesh);
+        building_releases++;
+        building_live_meshes--;
+    }
+    batch.mesh = render::Mesh { .. };
+}
+
+fn rebuild_building(index: i64, seconds: f32) {
+    var vertices: ft::Vertex[>..] = [];
+    let begin = index * BUILDING_BATCH_SIZE;
+    var center = float3_0;
+    var count: i64 = 0;
+    for slot in begin..min(begin + BUILDING_BATCH_SIZE, building_stamps.len) {
+        if !building_stamps[slot].active {
+            continue;
+        }
+        let e .= ecs::entities[slot];
+        machine(vertices, e.kind, e.pos, e.yaw, e.progress, e.powered, seconds, slot);
+        center += e.pos;
+        count++;
+    }
+    let replacement = render::upload(vertices);
+    let batch .= building_batches[index];
+    retire_building(batch);
+    batch.mesh = replacement;
+    batch.center = if count > 0 { center * ft::splat(1.0 / count) } else { float3_0 };
+    batch.dirty = false;
+    if replacement.vertices.id != 0 {
+        building_uploads++;
+        building_live_meshes++;
+    }
+}
+
+fn sync_buildings(eye: float3, seconds: f32) {
+    building_stamps.resize(ecs::entities.len, BuildingStamp { .. });
+    let count = (ecs::entities.len + BUILDING_BATCH_SIZE - 1) / BUILDING_BATCH_SIZE;
+    while building_batches.len < count {
+        building_batches.push(BuildingBatch { dirty: true, .. });
+    }
+    // Exact comparisons catch destruction/reuse, construction, brownouts and
+    // crossing the near-animation boundary without retaining stale geometry.
+    for index in building_batches.len {
+        let batch .= building_batches[index];
+        batch.count = 0;
+        let begin = index * BUILDING_BATCH_SIZE;
+        for slot in begin..min(begin + BUILDING_BATCH_SIZE, building_stamps.len) {
+            let stamp = building_stamp(slot, eye);
+            if stamp != building_stamps[slot] {
+                batch.dirty = true;
+                building_stamps[slot] = stamp;
+            }
+            if stamp.active {
+                batch.count++;
+            }
+        }
+        if batch.count == 0 {
+            retire_building(batch);
+            batch.dirty = false;
+        }
+    }
+    var budget: i64 = BUILDING_UPDATES;
+    for index in building_batches.len {
+        if budget > 0 && building_batches[index].dirty && building_batches[index].count > 0 {
+            rebuild_building(index, seconds);
+            budget--;
+        }
+    }
+    var visited: i64 = 0;
+    while budget > 0 && visited < building_batches.len {
+        building_cursor %= building_batches.len;
+        let index = building_cursor;
+        building_cursor++;
+        visited++;
+        if building_batches[index].count > 0 {
+            rebuild_building(index, seconds);
+            budget--;
+        }
+    }
+}
+
+fn building_cached(slot: i64) -> bool {
+    if slot >= building_stamps.len || !building_stamps[slot].active {
+        return false;
+    }
+    let batch .= building_batches[slot / BUILDING_BATCH_SIZE];
+    !batch.dirty && batch.mesh.vertices.id != 0
 }
 
 // Persistent cache inputs are values, never references into reusable entity
@@ -171,11 +298,7 @@ fn clear_of_machines(x: f32, z: f32) -> bool {
 }
 
 fn in_factory_district(x: f32, z: f32, margin: f32) -> bool {
-    let dx = x + 123.0;
-    let dz = z + 102.0;
-    let u = 0.64 * dx - 0.77 * dz;
-    let v = -0.77 * dx - 0.64 * dz;
-    abs(u) <= 88.0 + margin && abs(v) <= 80.0 + margin
+    world::district_distance(x, z) <= margin
 }
 
 fn clear_for_grove(x: f32, z: f32, emergent: bool) -> bool {
@@ -733,10 +856,10 @@ fn district_landmarks(out: ft::Vertex[>..]&, seconds: f32) {
     var tower: ft::Vertex[>..] = [];
     machine(tower, sim::TOWER, float3_0, 0.0, 1.0, true, seconds, -2);
     for vertex in tower {
-        let pos = showcase::tower_position + vertex.pos * ft::splat(2.5);
+        let pos = showcase::tower_position + vertex.pos * ft::splat(4.0);
         out.push(ft::Vertex { pos, vertex.normal, vertex.color });
     }
-    let tip = showcase::tower_position + float3 { 0.0, 45.2, 0.0 };
+    let tip = showcase::tower_position + float3 { 0.0, 72.4, 0.0 };
     render::beam(out, tip - float3 { 0.0, 1.5, 0.0 }, tip, 0.09, NAVY);
     render::octahedron(out, tip, ft::splat(0.65), CYAN, seconds * 0.2);
     if seconds % 1.0 < 0.5 {
@@ -747,21 +870,81 @@ fn district_landmarks(out: ft::Vertex[>..]&, seconds: f32) {
     let head_strength: f32 = 0.4 + district_night_strength * 0.8;
     let head = float4 { 0.373, 0.949, 0.878, 1.0 + head_strength };
     let rail_light = float4 { 0.373, 0.949, 0.878, 1.0 + 0.4 + district_night_strength * 0.8 };
-    let yaw = atan2(showcase::FORWARD_X, showcase::FORWARD_Z);
-    for mast in 6 {
-        let side: f32 = if mast % 2 == 0 { -5.0 } else { 5.0 };
-        let p = showcase::position(side, -80.0 + mast * 32.0);
-        render::cylinder(out, p + float3 { 0.0, 5.0, 0.0 }, 0.12, 10.0, NAVY, 6);
-        render::chamfered_box(out, p + float3 { 0.0, 9.85, 0.0 }, float3 { 1.4, 0.2, 0.65 }, IVORY, yaw);
-        render::box(out, p + float3 { 0.0, 10.05, 0.0 }, float3 { 1.2, 0.12, 0.5 }, head, yaw);
-    }
-    for light in 19 {
-        let v: f32 = -76.0 + light * 8.0 + (seconds * 4.0) % 8.0;
-        if v > 72.0 {
+    for node in estate::ROAD_NODES {
+        if !ecs::valid(showcase::road(node)) {
             continue;
         }
-        let p = showcase::position(0.0, v) + float3 { 0.0, 0.76, 0.0 };
-        render::box(out, p, float3 { 0.16, 0.07, 0.8 }, rail_light, yaw);
+        let start = estate::road_point(node);
+        var next: i64 = -1;
+        if node < estate::RING_NODES {
+            next = (node + 1) % estate::RING_NODES;
+        } else if (node - estate::RING_NODES + 1) % estate::SPOKE_STEPS != 0 {
+            next = node + 1;
+        }
+        if next >= 0 && ecs::valid(showcase::road(next)) {
+            let end = estate::road_point(next);
+            avenue(out, start, end, seconds, rail_light);
+        }
+        if node % 4 == 0 {
+            let p = start + float3 { 3.0, 0.0, 0.0 };
+            let yaw = estate::road_yaw(node);
+            render::cylinder(out, p + float3 { 0.0, 6.0, 0.0 }, 0.13, 12.0, NAVY, 6);
+            render::chamfered_box(out, p + float3 { 0.0, 11.85, 0.0 }, float3 { 1.8, 0.2, 0.7 }, IVORY, yaw);
+            render::box(out, p + float3 { 0.0, 12.05, 0.0 }, float3 { 1.6, 0.12, 0.5 }, head, yaw);
+        }
+    }
+    if showcase::load >= 1024 {
+        for district in 6 {
+            district_skyline(out, district, seconds);
+        }
+    }
+}
+
+fn avenue(out: ft::Vertex[>..]&, a: float3, b: float3, seconds: f32, light: float4) {
+    let direction = normalize(b - a);
+    let side = float3 { -direction.z * 3.0, 0.0, direction.x * 3.0 };
+    let lift = float3 { 0.0, 0.05, 0.0 };
+    let surface = float4 { 0.13, 0.18, 0.25, 1.0 };
+    render::triangle(out, a - side + lift, b + side + lift, b - side + lift, surface);
+    render::triangle(out, a - side + lift, a + side + lift, b + side + lift, surface);
+    for sign in 2 {
+        let offset = side * ft::splat(if sign == 0 { -1.0 } else { 1.0 });
+        render::beam(out, a + offset + lift, b + offset + lift, 0.055, light);
+    }
+    let t = (seconds * 0.25) % 1.0;
+    let marker = a + (b - a) * ft::splat(t) + float3 { 0.0, 0.10, 0.0 };
+    render::box(out, marker, float3 { 0.6, 0.07, 1.4 }, ORANGE, atan2(direction.x, direction.z));
+}
+
+fn district_skyline(out: ft::Vertex[>..]&, district: i64, seconds: f32) {
+    // Utility landmarks belong to the scenery, not fabricated production.
+    let angle: f32 = (district + 0.5) * TAU / 6.0;
+    let center = estate::point(67.0, angle);
+    let yaw = -angle;
+    let height: f32 = 16.0 + district % 3 * 7.0;
+    if district % 3 == 0 {
+        for stack in 3 {
+            let p = shifted(center, (stack - 1) * 6.0, 0.0, 0.0, yaw);
+            render::cylinder(out, p + float3 { 0.0, height * 0.5, 0.0 }, 1.2, height, IVORY, 8);
+            render::cylinder(out, p + float3 { 0.0, height - 1.0, 0.0 }, 1.35, 1.0, NAVY, 8);
+            render::cylinder(out, p + float3 { 0.0, 3.5, 0.0 }, 1.3, 1.0, ORANGE, 8);
+        }
+    } else if district % 3 == 1 {
+        for tank in 4 {
+            let p = shifted(center, (tank % 2) * 7.0 - 3.5, 0.0, (tank / 2) * 7.0 - 3.5, yaw);
+            render::cylinder(out, p + float3 { 0.0, 5.0, 0.0 }, 2.8, 10.0, IVORY, 12);
+            render::frustum(out, p + float3 { 0.0, 10.4, 0.0 }, 2.8, 0.8, 0.8, NAVY, 12);
+            render::cylinder(out, p + float3 { 0.0, 1.0, 0.0 }, 2.9, 0.4, ORANGE, 12);
+        }
+    } else {
+        for leg in 2 {
+            let p = shifted(center, if leg == 0 { -8.0 } else { 8.0 }, height * 0.5, 0.0, yaw);
+            render::chamfered_box(out, p, float3 { 1.3, height, 1.3 }, NAVY, yaw);
+        }
+        render::chamfered_box(out, center + float3 { 0.0, height, 0.0 }, float3 { 19.0, 1.5, 2.0 }, IVORY, yaw);
+        let trolley = shifted(center, sin(seconds * 0.2) * 5.0, height - 1.4, 0.0, yaw);
+        render::chamfered_box(out, trolley, float3 { 2.0, 1.2, 2.0 }, ORANGE, yaw);
+        render::beam(out, trolley, trolley - float3 { 0.0, 8.0, 0.0 }, 0.06, NAVY);
     }
 }
 
@@ -1069,6 +1252,7 @@ fn draw(
     district_night_strength = district_light_fade(day);
     let dt: f32 = clamp(seconds - last_seconds, 0.0, 0.1);
     last_seconds = seconds;
+    sync_buildings(eye, seconds);
     if showcase::enabled {
         // This district landmark is scenery, so it cannot silently finish the
         // player's separately constructed and powered communications objective.
@@ -1079,7 +1263,9 @@ fn draw(
         if !e.alive || length(e.pos - visibility_center()) > visible_distance {
             continue;
         }
-        machine(dynamic, e.kind, e.pos, e.yaw, e.progress, e.powered, seconds, i);
+        if !building_cached(i) {
+            machine(dynamic, e.kind, e.pos, e.yaw, e.progress, e.powered, seconds, i);
+        }
         if e.kind == 7 && e.cargo_count > 0 {
             let cargo = e.pos + float3 { 0.0, 1.7 + sin(seconds * 4.0 + i * 1.7) * 0.07, 0.0 };
             let cargo_color = if e.cargo_kind == 1 { GLACITE } else { FERRITE };
@@ -1167,6 +1353,13 @@ fn draw(
     detail::append_meshes(all_meshes);
     all_meshes.push(grass_mesh);
     all_meshes.push(rail_mesh);
+    for batch in building_batches {
+        if !batch.dirty && batch.mesh.vertices.id != 0 {
+            var mesh = batch.mesh;
+            mesh.casts_shadow = length(batch.center - visibility_center()) < 150.0;
+            all_meshes.push(mesh);
+        }
+    }
     let horizon_fade = if horizon::fading { horizon::fade_progress() } else { 0.0 };
     if horizon::fading {
         for old_mesh in horizon::previous_meshes() {
@@ -1189,6 +1382,13 @@ fn draw(
 }
 
 fn shutdown() {
+    for &batch in building_batches {
+        retire_building(batch);
+    }
+    building_batches.clear();
+    building_stamps.clear();
+    building_cursor = 0;
+    assert(building_live_meshes == 0 && building_uploads == building_releases);
     release_rail_mesh();
     logistics_buildings.clear();
     logistics_links.clear();

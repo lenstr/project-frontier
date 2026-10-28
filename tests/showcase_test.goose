@@ -87,6 +87,55 @@ fn assert_fixture(target: i64) {
     }
 }
 
+struct Incoming { source: i64, next: i64 }
+
+fn assert_connected_outputs() {
+    var heads: i64[>..] = [];
+    heads.resize(ecs::entities.len, -1);
+    var edges: Incoming[>..] = [];
+    for source in ecs::entities.len {
+        let entity .= ecs::entities[source];
+        if !entity.alive || !sim::building(entity.kind) {
+            continue;
+        }
+        for next in entity.links {
+            assert(ecs::valid(next));
+            assert(sim::distance(entity.pos, ecs::entities[next.slot].pos) <= 24.0);
+            edges.push(Incoming { source, heads[next.slot] });
+            heads[next.slot] = edges.len - 1;
+        }
+    }
+    var reached: bool[>..] = [];
+    reached.resize(ecs::entities.len, false);
+    var work: i64[>..] = [];
+    work.push(showcase::hub.slot);
+    reached[showcase::hub.slot] = true;
+    var cursor: i64 = 0;
+    while cursor < work.len {
+        let slot = work[cursor];
+        cursor++;
+        var edge = heads[slot];
+        while edge >= 0 {
+            let source = edges[edge].source;
+            if !reached[source] {
+                reached[source] = true;
+                work.push(source);
+            }
+            edge = edges[edge].next;
+        }
+    }
+    var outputs: i64 = 0;
+    for cell in showcase::cell_count() {
+        let output = showcase::cell_entity(cell, 6);
+        if ecs::valid(output) {
+            assert(reached[output.slot]);
+            outputs++;
+        }
+    }
+    assert(outputs > 500);
+    print("large colony graph: outputs reaching hub=", outputs, "; directed edges=", edges.len);
+}
+
 fn main() {
     let start = clock();
     sim::init(73129);
@@ -189,6 +238,40 @@ fn main() {
     showcase::set_load(2000);
     assert_fixture(2000);
     assert(same(before_cleanup, balance()));
+    showcase::set_load(12000);
+    assert_fixture(12000);
+    assert_connected_outputs();
+    assert(robot_count() > 2000);
+    let large_slots = ecs::entities.len;
+    let large_inventories = ecs::inventories.len;
+    for round in 2 {
+        showcase::set_load(32);
+        showcase::set_load(12000);
+        assert_fixture(12000);
+        assert(ecs::entities.len == large_slots);
+        assert(ecs::inventories.len == large_inventories);
+        assert(same(before_cleanup, balance()));
+    }
+    let large_crafts = sim::crafted;
+    for frame in 12 {
+        sim::tick(0.1);
+    }
+    assert(sim::crafted > large_crafts);
+    assert(same(before_cleanup, balance()));
+    // Live inbound cache and direct queries must agree after each tick.
+    for sample in 16 {
+        let h = showcase::owned[sample * showcase::owned.len / 16];
+        for resource in -1..5 {
+            assert(!sim::inbound_index_active);
+            let direct = sim::inbound(h, resource);
+            sim::inbound_index_active = true;
+            let indexed = sim::inbound(h, resource);
+            sim::inbound_index_active = false;
+            assert(direct == indexed);
+        }
+    }
+    print("large colony: 12000 live; slots=", large_slots, "; robots=", robot_count(),
+          "; crafts=", sim::crafted - large_crafts, "; repeated shrink/grow plateau");
     showcase::clear();
     assert(showcase::owned.len == 0 && showcase::active_count() == 0);
     assert(!showcase::enabled && showcase::load == 0);
@@ -218,7 +301,17 @@ fn main() {
     showcase::clear();
     assert(ecs::alive_count == restored_live);
     assert(same(saved_resources, resources()));
+    // The larger workload uses the same persistence schema and real file IO.
+    showcase::set_load(12000);
+    assert(showcase::flush_escrow());
+    let large_live = ecs::alive_count;
+    let large_resources = resources();
+    assert(save::write("build/metropolis-test.sav"));
+    assert(save::load("build/metropolis-test.sav"));
+    assert(ecs::alive_count == large_live);
+    assert(same(large_resources, resources()));
+    showcase::forget();
     sim::shutdown();
-    print("showcase: PASS; exact32/512/1024/2000 loads, default_robots=", default_robots,
+    print("showcase: PASS; exact32/512/1024/2000/12000 loads, default_robots=", default_robots,
           ", finite real production, conservation/packet settlement, player ownership, pool plateau, save/forget; elapsed_ms=", (clock() - start) * 1000.0);
 }

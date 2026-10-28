@@ -15,9 +15,90 @@ frames. No project-defined native allocator or native simulation was necessary.
 
 **Engineering judgment:** Goose is viable for this size of game, particularly when lifetimes
 are organized as fixed records, reusable runs and scope-local scratch. This result does not
-establish production readiness for a large voxel game, a many-thousand-machine factory, or a
-long-lived commercial engine. Language/compiler diagnostics, profiling support and scaling
+establish production readiness for a large voxel game, an unrestricted industrial simulation, or
+a long-lived commercial engine. Language/compiler diagnostics, profiling support and scaling
 algorithms need further work.
+
+## Twelve-thousand-entity industrial campus
+
+The former 2,000-entity rectangular showcase is replaced by a six-sector campus up to
+12,000 entities across a 624 m deterministic platform. At full load, 587 production blocks
+contain 1,174 smelters, 1,174 assemblers, 3,522 solar arrays and 2,348 robots. Road storage
+nodes, local relays and stores make up the rest. All 587 cell outputs reach the collection
+hub through a 10,227-edge directed graph; the test checks valid handles and the 24 m link
+limit. Cargo roads form a circular spine with six radial avenues. Utility skyline structures
+and the 72 m landmark are explicitly scenery and do not fake production or mission victory.
+
+### Measured facts
+
+`./tools/test.sh --graphics` passes, including the 12,000-entity fixture, exact resource
+conservation, a real file save/load round-trip and two 12,000 → 32 → 12,000 cycles. The test
+retains 12,126 entity slots (its player-owned fixtures add two slots beyond the application
+scene); inventory storage also returns to its previous high-water mark. This is pool reuse,
+not an OS memory residency measurement. Ordinary input-driven progression and flight still pass.
+The final flat-floor query optimization also passes the world interpolation/edit/streaming test.
+
+A new native building-cache regression exercises near/far transitions, entity-slot generation
+reuse and 120 refresh frames: 251 GPU buffer uploads are matched by 251 releases at shutdown.
+The complete application asserts its cached-building upload/release balance on every normal
+exit. This does not establish driver residency over multi-hour sessions.
+
+An isolated release run on the local M5 Max at 1920×1080, with the ordinary HUD, shadows and
+synchronous GPU completion, ran 900 frames (889 measured samples):
+
+| Measurement | Result |
+|---|---:|
+| Average FPS | 47.58 |
+| Frame p50 / p95 / p99 | 20.69 / 24.41 / 30.91 ms |
+| Simulation p95 | 2.75 ms |
+| Render CPU p95 | 15.37 ms |
+| GPU completion wait p95 (CPU blocking) | 8.03 ms |
+| Live entities / gameplay chunks | 12,124 / 169 |
+| Full-detail visual tiles | 289 |
+| Submitted triangles / draw calls, final frame | 10,602,139 / 927 |
+| Cached building meshes, final frame | 190 |
+| Building uploads / releases before shutdown | 5,400 / 5,210 |
+
+Percentiles are per series and must not be added. The remaining 190 building meshes are
+released on shutdown. The dynamic GPU buffer retains a 526.4 MB startup high-water capacity;
+this is not total application memory. Terrain, rail and cached building buffers are additional.
+The scene is deliberately heavy and does **not** meet 60 FPS at maximum load. This is a short
+stationary survey benchmark, not a long streaming-memory test or a GPU timestamp measurement.
+Raw evidence: `artifacts/metropolis-performance.json`, `artifacts/metropolis-performance.log`
+and `artifacts/metropolis-tests.log`.
+
+```sh
+./run.sh --showcase --load 12000 --survey 140 180 220 0.52 0.75 --time 0.375 \
+  --offscreen --frames 900 --benchmark --mute --screenshot build/metropolis-benchmark.png
+```
+
+### Implementation findings and limits
+
+The first expanded scene rebuilt every machine mesh each frame. A preliminary run showed
+about 18 FPS and dominant render CPU cost; it overlapped validation work, so it is **not** a
+controlled before/after benchmark. A first bounded-cache run measured about 44 FPS. The final
+run above additionally skips four-corner height resampling for unmodified interior platform
+points. No claim of an isolated speedup factor is made from these runs.
+
+Distant assemblies now live in native meshes grouped by 64 entity slots, with exact value
+stamps and at most six batch rebuilds per frame. Their animation refresh is staggered rather
+than per frame. Machines within 60 m, robots, cargo and belt arrows remain live every frame.
+Pending invalidations fall back to the original builder, avoiding stale or missing entities.
+This is explicit GPU lifetime management in Goose; it adds no project-native C/C++.
+
+The larger workload also exposed repeated packet scans and synchronized idle-robot searches.
+A tick-local inbound count table is built once after arrivals and updated for dispatches;
+sampled totals are checked against direct packet scans. Round-robin robot assignment admits
+at most twice the planning budget per tick, minimum one, independently of pathfinding.
+Admission can delay a particular idle robot when thousands wait; no work or cargo is invented.
+
+**Engineering judgment:** the language continues to fit slot pools, scratch mesh generation,
+value snapshots and bounded ownership of native handles. The dominant observed limitation at
+this load is the renderer's CPU geometry work, uploads and GPU workload; this benchmark does
+not prove a language runtime bottleneck. First-time power/wire graph construction still uses
+quadratic searches. The enlarged deterministic platform changes regenerated terrain near the
+colony for existing seeds; save encoding is unchanged. These are deliberate implementation
+tradeoffs, not memory-safety guarantees or production-engine certification.
 
 ## Full-detail survey terrain follow-up
 

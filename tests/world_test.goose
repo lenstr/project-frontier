@@ -96,25 +96,22 @@ fn terrain_properties() {
     var arid_high: f32 = -10000.0;
     var fungal_low: f32 = 10000.0;
     var fungal_high: f32 = -10000.0;
-    for vi in 5 {
-        for ui in 4 {
-            let v: f32 = 260.0 + vi * 20.0;
-            let u: f32 = 90.0 + ui * 10.0;
-            let ax = u * 0.64 - v * 0.77;
-            let az = -u * 0.77 - v * 0.64;
-            let ux = -u * 0.64 - v * 0.77;
-            let uz = u * 0.77 - v * 0.64;
+    // The larger industrial platform occupies the old nearby relief samples.
+    // Check both biome shapes outside its deterministic 312 m footprint.
+    for vi in 12 {
+        for ui in 12 {
+            let ax: f32 = -650.0 + ui * 80.0;
+            let az: f32 = -650.0 + vi * 80.0;
             let ah = world::base_height(ax, az);
-            let uh = world::base_height(ux, uz);
             if world::biome(ax, az) == 1 && abs(ah - 1.8) > 0.5 {
                 arid_relief++;
                 arid_low = min(arid_low, ah);
                 arid_high = max(arid_high, ah);
             }
-            if world::biome(ux, uz) == 2 && abs(uh - 1.8) > 0.5 {
+            if world::biome(ax, az) == 2 && abs(ah - 1.8) > 0.5 {
                 fungal_relief++;
-                fungal_low = min(fungal_low, uh);
-                fungal_high = max(fungal_high, uh);
+                fungal_low = min(fungal_low, ah);
+                fungal_high = max(fungal_high, ah);
             }
         }
     }

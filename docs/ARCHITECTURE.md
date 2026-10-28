@@ -23,7 +23,8 @@ packages provide the GPU/window/input interface, immediate-mode text/UI and PCM 
 | `src/dev_panel.goose` | Interactive F1 inspector, settings/actions, charts and entity graph navigation |
 | `src/telemetry.goose` | Bounded frame history, measured CPU stages and sampled pool counters |
 | `src/memory.goose` | Coalesced main-thread page-release requests, explicit frame boundary and result counters |
-| `src/showcase.goose` | Finite-input 32–2,000 entity colony, ownership and resource-preserving resizing |
+| `src/showcase.goose` | Finite-input 32–12,000 entity colony, ownership and resource-preserving resizing |
+| `src/colony_layout.goose` | Shared six-sector polar plan, roads, platform bounds and district cells |
 | `src/free_flight.goose` | Detached camera motion and camera-ground streaming focus, independent of player state |
 | `src/flight_playtest.goose` | Real injected-input survey-flight integration driver |
 | `src/sound.goose` | Procedural sound samples and official audio API calls |
@@ -325,3 +326,49 @@ advances 2,155 active entities, including 2,002 structures, 400 production machi
 without rendering. Exact fixture, source/build hashes, percentiles and memory observations are
 recorded in `artifacts/` and assessed in `GOOSE_EVALUATION.md`. Neither fixture alone establishes
 frame rates for the other workload.
+
+
+## Large industrial campus
+
+`estate` supplies a deterministic 624 m circular platform, eleven curved cell rows, six
+sectors and a 169 m ring spine. Sector rules omit plaza rows, stagger freight-yard slots and
+leave a gate notch; one sector gradually rotates its rows. `showcase` uses this plan for
+ordinary entities. The first 28 slots preserve a small functioning fixture; 252 road nodes
+follow, then the remaining production cells. This keeps every requested load exact from
+32 to 12,000 while retaining stable indices when it changes.
+
+Road storage nodes are spaced at most 12 m apart, within the 14 m power and 24 m transport
+limits. The ring closes a directed loop; radial branches lead inward to the collection hub.
+Neighbouring cells link circumferentially and to the nearest inward row; nearby outputs also
+join the roads. Every valid output in the full fixture is tested for directed reachability
+to the hub. Roads, lights and utility landmarks add visual structure; only storage nodes and
+production cells participate in simulation. The main landmark is 72 m tall and cannot satisfy
+the player's mission. Survey object visibility expands to 1,200 m so the whole campus remains
+visible from its overview camera, independently of gameplay chunk residency.
+
+The enlarged deterministic flat mask replaces the previous rectangular district footprint
+for all worlds, including terrain regenerated from an existing seed. Vegetation shares its
+40 m clearing. This intentionally trades nearby natural relief for room to build; terrain
+outside the platform retains the same noise and biome rules. The save format is unchanged,
+but this is a world-generation change, so old terrain outside the former district can change.
+
+Simulation uses a six-counter inbound cargo table per entity slot during each tick (five
+resources and a total). It is rebuilt after arrivals and incremented for new packets, then
+disabled before returning to callers. Direct queries outside a tick scan the packets as
+before. Idle-robot assignment uses a round-robin cursor and at most twice the path-planning
+budget per tick, with a minimum of one assignment. Navigation keeps its independent budget.
+These bound admission bursts; they do not reduce the live entity count or manufacture cargo.
+
+
+Distant building assemblies are cached in fixed groups of 64 entity slots. Exact stamps
+(generation, kind, position, yaw, power and visible membership) invalidate a group; dirty
+geometry is omitted and rendered through the live path until replacement, avoiding stale
+or duplicated objects. At most six groups refresh per frame, round-robin after dirty work.
+Far machinery animation consequently updates less often than the frame rate; machines within
+60 m of the actual eye, robots, cargo and belt arrows stay on the ordinary live path. This
+changes presentation cadence only. The scene owns and explicitly retires each native mesh
+on replacement, emptying and shutdown. F1 World exposes batch and upload/release counters.
+
+Unmodified height queries at least 3 m inside the flat campus return the exact 1.8 m floor
+without resampling four grid corners. The inset contains the whole two-metre interpolation
+cell; any terrain edit disables this fast path, preserving the ordinary edited collision mesh.

@@ -9,10 +9,15 @@ import vec;
 import .entities;
 import .sim;
 import .world;
+import .colony_layout;
 
-let MAX_LOAD = 2000;
+let MAX_LOAD = 12000;
 let SPINE_NODES = 8;
 let CELL_PARTS = 20;
+let ROAD_START = SPINE_NODES + CELL_PARTS;
+let ROAD_END = ROAD_START + estate::ROAD_NODES;
+
+var cells: estate::Cell[>..<] = [];
 let ORE_FEED = 4096;
 let CRYSTAL_FEED = 2048;
 let FORWARD_X: f32 = -0.77;
@@ -67,7 +72,7 @@ fn at(index: i64) -> ecs::Handle {
 }
 
 fn cell_index(cell: i64, part: i64) -> i64 {
-    SPINE_NODES + cell * CELL_PARTS + part
+    if cell == 0 { SPINE_NODES + part } else { ROAD_END + (cell - 1) * CELL_PARTS + part }
 }
 
 fn cell_entity(cell: i64, part: i64) -> ecs::Handle {
@@ -93,39 +98,60 @@ fn part_kind(part: i64) -> i64 {
     sim::STORAGE
 }
 
+fn cell_count() -> i64 {
+    if owned.len <= SPINE_NODES {
+        return 0;
+    }
+    if owned.len <= ROAD_END {
+        return 1;
+    }
+    1 + (owned.len - ROAD_END + CELL_PARTS - 1) / CELL_PARTS
+}
+
+fn road(index: i64) -> ecs::Handle {
+    at(ROAD_START + index)
+}
+
+fn cell_for_index(index: i64) -> i64 {
+    if index < ROAD_START { 0 } else { 1 + (index - ROAD_END) / CELL_PARTS }
+}
+
+fn part_for_index(index: i64) -> i64 {
+    if index < ROAD_START { index - SPINE_NODES } else { (index - ROAD_END) % CELL_PARTS }
+}
+
 fn part_position(cell: i64, part: i64) -> float3 {
-    let row = cell / 10;
-    let column = cell % 10;
-    let band = column / 2;
-    let side: f32 = if column % 2 == 0 { -1.0 } else { 1.0 };
-    let u = side * (12.0 + band * 16.0);
-    let v: f32 = -72.0 + row * 16.0;
-    // Robots use the alleys; the 4x4 building pad leaves cross alleys open.
+    let plan = cells[cell];
+    var du: f32 = 0.0;
+    var dv: f32 = 0.0;
     if part == 7 {
-        return position(u - 3.0, v - 7.0);
+        du = -3.0;
+        dv = -7.0;
+    } else if part == 13 {
+        du = 3.0;
+        dv = 7.0;
+    } else if part == 17 {
+        du = -7.0;
+        dv = 3.0;
+    } else if part == 19 {
+        du = 7.0;
+        dv = -3.0;
+    } else {
+        var pad_index = part;
+        if part > 7 {
+            pad_index--;
+        }
+        if part > 13 {
+            pad_index--;
+        }
+        if part > 17 {
+            pad_index--;
+        }
+        du = (pad_index % 4) * 3.0 - 4.5;
+        dv = (pad_index / 4) * 3.0 - 4.5;
     }
-    if part == 13 {
-        return position(u + 3.0, v + 7.0);
-    }
-    if part == 17 {
-        return position(u - 7.0, v + 3.0);
-    }
-    if part == 19 {
-        return position(u + 7.0, v - 3.0);
-    }
-    var pad_index = part;
-    if part > 7 {
-        pad_index--;
-    }
-    if part > 13 {
-        pad_index--;
-    }
-    if part > 17 {
-        pad_index--;
-    }
-    let du: f32 = (pad_index % 4) * 3.0 - 4.5;
-    let dv: f32 = (pad_index / 4) * 3.0 - 4.5;
-    position(u + du, v + dv)
+    let center = estate::point(plan.radius + dv, plan.angle);
+    sim::ground(center.x - sin(plan.angle) * du, center.z + cos(plan.angle) * du)
 }
 
 fn supply(h: ecs::Handle, resource: i64, amount: i64) {
@@ -155,27 +181,37 @@ fn start_recipe(h: ecs::Handle, kind: i64) {
 fn spawn_index(index: i64) -> ecs::Handle {
     var kind: i64 = sim::STORAGE;
     var point: float3 = position(0.0, -76.0);
+    var yaw = atan2(FORWARD_X, FORWARD_Z);
+    let is_road = index >= ROAD_START && index < ROAD_END;
     if index == 0 {
         kind = sim::LANDER;
     } else if index < SPINE_NODES {
-        let v: f32 = if index == 7 { 72.0 } else { -56.0 + (index - 1) * 22.0 };
-        point = position(0.0, v);
+        point = position(0.0, -76.0 + index * 12.0);
+    } else if is_road {
+        let planned = estate::road_point(index - ROAD_START);
+        point = sim::ground(planned.x, planned.z);
+        yaw = estate::road_yaw(index - ROAD_START);
     } else {
-        let cell = (index - SPINE_NODES) / CELL_PARTS;
-        let part = (index - SPINE_NODES) % CELL_PARTS;
+        let cell = cell_for_index(index);
+        let part = part_for_index(index);
         kind = part_kind(part);
         point = part_position(cell, part);
+        yaw = -cells[cell].angle;
     }
     let h = ecs::spawn(kind, point);
-    ecs::entities[h.slot].yaw = atan2(FORWARD_X, FORWARD_Z);
-    if index >= SPINE_NODES {
-        let part = (index - SPINE_NODES) % CELL_PARTS;
+    ecs::entities[h.slot].yaw = yaw;
+    if index >= SPINE_NODES && !is_road {
+        let part = part_for_index(index);
         if part == 1 {
             supply(h, sim::ORE, ORE_FEED);
         } else if part == 4 {
             supply(h, sim::CRYSTAL, CRYSTAL_FEED);
         } else if kind == sim::SMELTER || kind == sim::ASSEMBLER {
             start_recipe(h, kind);
+        }
+        if kind == sim::ROBOT {
+            // Spread the first assignment wave across one second.
+            ecs::entities[h.slot].timer = (index % 60) / 60.0;
         }
     }
     created++;
@@ -193,10 +229,22 @@ fn connect(a: ecs::Handle, b: ecs::Handle) {
 
 fn connect_cells() {
     for i in SPINE_NODES - 1 {
-        connect(at(i), at(i + 1));
+        connect(at(i + 1), at(i));
     }
-    let cells = (max(0, owned.len - SPINE_NODES) + CELL_PARTS - 1) / CELL_PARTS;
-    for cell in cells {
+    // Every street segment is a real storage/transport/power node.
+    for i in estate::RING_NODES {
+        connect(road(i), road((i + 1) % estate::RING_NODES));
+    }
+    for spoke in 6 {
+        let first = estate::RING_NODES + spoke * estate::SPOKE_STEPS;
+        for step in estate::SPOKE_STEPS - 1 {
+            connect(road(first + step + 1), road(first + step));
+        }
+        connect(road(first + 13), road(spoke * estate::RING_NODES / 6));
+        connect(road(spoke * estate::RING_NODES / 6), road(first + 14));
+        connect(road(first), at(SPINE_NODES - 1));
+    }
+    for cell in cell_count() {
         let ore = cell_entity(cell, 1);
         let crystal = cell_entity(cell, 4);
         let furnace_a = cell_entity(cell, 2);
@@ -221,13 +269,41 @@ fn connect_cells() {
         connect(assembler_a, output_a);
         connect(assembler_b, output_b);
         connect(output_b, output_a);
-        let column = cell % 10;
-        if column >= 2 {
-            connect(output_a, cell_entity(cell - 2, 6));
-        } else if cell >= 10 {
-            connect(output_a, cell_entity(cell - 10, 6));
-        } else {
-            connect(output_a, hub);
+        // Ring neighbours and radial neighbours form loops, rather than a tree.
+        let plan = cells[cell];
+        var radial: i64 = -1;
+        var radial_distance: f32 = 24.0;
+        for other in cell {
+            let previous = cells[other];
+            if previous.district != plan.district {
+                continue;
+            }
+            if previous.ring == plan.ring && previous.slot + 1 == plan.slot {
+                connect(output_a, cell_entity(other, 6));
+            }
+            if previous.ring + 1 == plan.ring {
+                let distance = sim::distance(part_position(cell, 6), part_position(other, 6));
+                if distance < radial_distance {
+                    radial = other;
+                    radial_distance = distance;
+                }
+            }
+        }
+        if radial >= 0 {
+            connect(output_a, cell_entity(radial, 6));
+        }
+        var nearest: i64 = -1;
+        var best: f32 = 24.0;
+        let output_position = part_position(cell, 6);
+        for node in estate::ROAD_NODES {
+            let distance = sim::distance(output_position, estate::road_point(node));
+            if distance < best && ecs::valid(road(node)) {
+                best = distance;
+                nearest = node;
+            }
+        }
+        if nearest >= 0 {
+            connect(output_a, road(nearest));
         }
     }
 }
@@ -323,6 +399,10 @@ fn set_load(requested: i64) {
     }
     let start = clock_ns();
     let target = clamp(requested, 32, MAX_LOAD);
+    if cells.len == 0 {
+        cells.append(estate::plans());
+    }
+    assert(target <= ROAD_END + (cells.len - 1) * CELL_PARTS);
     if target < owned.len {
         shrink(target);
     }
@@ -335,7 +415,7 @@ fn set_load(requested: i64) {
         owned.push(spawn_index(owned.len));
     }
     hub = at(0);
-    tower_position = position(0.0, 72.0);
+    tower_position = position(0.0, 0.0);
     connect_cells();
     sim::update_power();
     enabled = true;
@@ -372,5 +452,5 @@ fn forget() {
     build_ms = 0.0;
     escrow = [0; 5];
     injected = [0; 5];
-    tower_position = position(0.0, 72.0);
+    tower_position = position(0.0, 0.0);
 }

@@ -49,6 +49,11 @@ var deposit_cx: i64 = 9223372036854775807;
 var deposit_cz: i64 = 9223372036854775807;
 var path_budget: i64 = 0;
 var robot_path_budget: i64 = 2;
+var assignment_cursor: i64 = 0;
+// A tick-local inbound index avoids rescanning every packet for every consumer.
+// Calls outside a tick still inspect packets directly, including test fixtures.
+var inbound_index: i64[>..<] = [];
+var inbound_index_active = false;
 
 // Exact stamps detect raw ECS edits and restored snapshots as well as normal
 // construction. Component membership changes only when this topology changes.
@@ -129,6 +134,8 @@ fn after_load(s: u32) {
     power_stamps.clear();
     power_components.clear();
     power_component_count = 0;
+    inbound_index_active = false;
+    assignment_cursor = 0;
 }
 
 fn spawn_robot(pos: float3) -> ecs::Handle {
@@ -553,6 +560,9 @@ fn inventory_total(h: ecs::Handle) -> i64 {
 }
 
 fn inbound(h: ecs::Handle, resource: i64) -> i64 {
+    if inbound_index_active && ecs::valid(h) && resource >= -1 && resource < 5 {
+        return inbound_index[h.slot * 6 + (if resource < 0 { 5 } else { resource })];
+    }
     var total: i64 = 0;
     for p in packets {
         if p.alive && ecs::same(p.dest, h) && (resource < 0 || p.kind == resource) {
@@ -560,6 +570,27 @@ fn inbound(h: ecs::Handle, resource: i64) -> i64 {
         }
     }
     total
+}
+
+fn index_packet(packet: Packet) {
+    if !packet.alive || !ecs::valid(packet.dest) {
+        return;
+    }
+    let offset = packet.dest.slot * 6;
+    inbound_index[offset + 5] += packet.count;
+    if packet.kind >= 0 && packet.kind < 5 {
+        inbound_index[offset + packet.kind] += packet.count;
+    }
+}
+
+fn index_inbound() {
+    inbound_index.resize(ecs::entities.len * 6, 0);
+    for i in inbound_index.len {
+        inbound_index[i] = 0;
+    }
+    for packet in packets {
+        index_packet(packet);
+    }
 }
 
 fn accepts(h: ecs::Handle, resource: i64) -> bool {
@@ -813,6 +844,7 @@ fn transport(dt: f32) {
             packets.free(i);
         }
     }
+    index_inbound();
     dispatch_clock -= dt;
     if dispatch_clock > 0.0 {
         return;
@@ -841,9 +873,11 @@ fn transport(dt: f32) {
                     continue;
                 }
                 assert(ecs::take(source, resource, 1));
-                packets.alloc_index(Packet {
+                let packet = Packet {
                     alive: true, source: source, dest: target, kind: resource, count: 1, t: 0.0,
-                });
+                };
+                packets.alloc_index(packet);
+                index_packet(packet);
                 e.state = (edge + 1) % e.links.len;
                 sent = true;
                 break;
@@ -857,7 +891,11 @@ fn robot_destination(source: ecs::Handle, resource: i64, from: float3) -> ecs::H
     var best_score: f32 = 100000.0;
     for i in ecs::entities.len {
         let e .= ecs::entities[i];
-        if !e.alive || i == source.slot || !accepts(handle(i), resource) {
+        if !e.alive || i == source.slot {
+            continue;
+        }
+        let offset = e.pos - from;
+        if offset.x * offset.x + offset.z * offset.z > 34.0 * 34.0 {
             continue;
         }
         // Robots feed production and bring results home. Storage-to-storage
@@ -866,7 +904,7 @@ fn robot_destination(source: ecs::Handle, resource: i64, from: float3) -> ecs::H
             continue;
         }
         let range = distance(from, e.pos);
-        if range > 34.0 {
+        if !accepts(handle(i), resource) {
             continue;
         }
         let stock = ecs::amount(handle(i), resource) + inbound(handle(i), resource);
@@ -937,7 +975,29 @@ fn abandon_robot(e: ecs::Entity&) {
     e.links = ecs::edges.realloc_slice(e.links, 0);
 }
 
+fn assign_robots() {
+    if ecs::entities.len == 0 {
+        return;
+    }
+    // Round-robin admission prevents thousands of idle workers from all
+    // searching the colony on one frame. Navigation keeps its separate budget.
+    var budget = max(1, robot_path_budget * 2);
+    var visited: i64 = 0;
+    while budget > 0 && visited < ecs::entities.len {
+        assignment_cursor %= ecs::entities.len;
+        let slot = assignment_cursor;
+        assignment_cursor++;
+        visited++;
+        let entity .= ecs::entities[slot];
+        if entity.alive && entity.kind == ROBOT && entity.state == 0 && entity.timer <= 0.0 {
+            idle_robot(handle(slot));
+            budget--;
+        }
+    }
+}
+
 fn robots(dt: f32) {
+    assign_robots();
     for i in ecs::entities.len {
         let e .= ecs::entities[i];
         if !e.alive || e.kind != ROBOT {
@@ -947,9 +1007,6 @@ fn robots(dt: f32) {
         e.pos.y = world::height(e.pos.x, e.pos.z);
         e.timer -= dt;
         if e.state == 0 {
-            if e.timer <= 0.0 {
-                idle_robot(h);
-            }
             continue;
         }
         if !ecs::valid(e.target) {
@@ -1027,11 +1084,13 @@ fn tick(dt: f32) {
     now = clock_ns();
     production_ms = (now - section_start) / 1000000.0;
     section_start = now;
+    inbound_index_active = true;
     transport(step);
     now = clock_ns();
     transport_ms = (now - section_start) / 1000000.0;
     section_start = now;
     robots(step);
+    inbound_index_active = false;
     now = clock_ns();
     robots_ms = (now - section_start) / 1000000.0;
     simulation_ms = (now - start) / 1000000.0;

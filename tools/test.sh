@@ -24,7 +24,7 @@ for name in entities world gameplay persistence telemetry showcase free_flight m
   "build/${name}_test"
 done
 if [ "$mode" = --graphics ]; then
-  for name in dev_panel horizon horizon_motion visual_detail shadow_boundary render_cache; do
+  for name in dev_panel horizon horizon_motion visual_detail shadow_boundary render_cache building_cache; do
     "$compiler" build "tests/${name}_test.goose" -o "build/${name}_test" --debug
     "build/${name}_test"
   done
@@ -36,7 +36,7 @@ if [ "$mode" = --graphics ]; then
     cd build/qa/inputs
     ../../frontier_qa --flight-test --mute --screenshot flight.png
     ../../frontier_qa --playtest --mute --screenshot input.png
-    for load in 32 2000; do
+    for load in 32 2000 12000; do
       ../../frontier_qa --showcase --load "$load" --offscreen --frames 16 --benchmark --mute --screenshot load.png
       case "$(cat artifacts/benchmark.json)" in
         *"\"showcase_load\": $load,"*) ;;

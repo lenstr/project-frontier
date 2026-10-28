@@ -41,11 +41,7 @@ fn member(cx: i64, cz: i64, grove: i64, index: i64, group: Grove) -> Plant {
 }
 
 fn cleared(x: f32, z: f32, emergent: bool) -> bool {
-    let dx = x + 123.0;
-    let dz = z + 102.0;
-    let u = dx * 0.64 - dz * 0.77;
-    let v = -dx * 0.77 - dz * 0.64;
-    if abs(u) <= 128.0 && abs(v) <= 120.0 {
+    if world::district_distance(x, z) <= 40.0 {
         return true;
     }
     let along = -0.77 * x - 0.64 * z;

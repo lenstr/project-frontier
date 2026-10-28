@@ -45,6 +45,7 @@ var start_x: f32 = 0.0;
 var start_z: f32 = 0.0;
 var benchmark = false;
 var offscreen = false;
+var photo = false;
 var playtest = false;
 var flight_test = false;
 var victory = false;
@@ -205,6 +206,12 @@ fn reframe_flight() {
     }
     let anchor = if ecs::valid(sim::base) { ecs::entities[sim::base.slot].pos } else { sim::player };
     flight::enter(anchor, 0.873);
+    if showcase::enabled {
+        let center = showcase::position(0.0, 0.0);
+        let heading: f32 = 0.873;
+        flight::eye = center + float3 { sin(heading) * 500.0, 400.0, cos(heading) * 500.0 };
+        flight::pitch = 0.675;
+    }
     eye = flight::eye;
     camera_target = flight::target();
 }
@@ -636,6 +643,9 @@ fn report() {
         ",\n  \"submitted_triangles\": ", render::triangles,
         ",\n  \"draw_calls\": ", render::draw_calls,
         ",\n  \"dynamic_gpu_capacity_bytes\": ", render::dynamic_capacity,
+        ",\n  \"building_cache_meshes\": ", scene::building_live_meshes,
+        ",\n  \"building_cache_uploads\": ", scene::building_uploads,
+        ",\n  \"building_cache_releases\": ", scene::building_releases,
         ",\n  \"showcase_load\": ", showcase::load,
         ",\n  \"developer_panel_mode\": ", dev::mode,
         ",\n  \"shadows\": ", shadows,
@@ -668,10 +678,10 @@ fn parse_options() -> LaunchOptions {
                 "Project Frontier / Goose v2026.3+git.a108677d300c\n",
                 "Usage: ./run.sh [--resume] [--save PATH] [--seed N] [--quality low|medium|high]\n",
                 "       ./run.sh --demo [--hero] [--victory] [--time 0..1]\n",
-                "       ./run.sh --showcase [--load 32..2000] [--devtools] [--dev-tab 0..4]\n",
+                "       ./run.sh --showcase [--load 32..12000] [--devtools] [--dev-tab 0..4]\n",
                 "       ./run.sh --showcase --flight   # Detached strategic overview\n",
                 "       ./run.sh --offscreen --frames N [--benchmark] [--screenshot PATH]\n",
-                "       Add --rapid-stream for repeatable automatic chunk travel.\n",
+                "       Add --photo for HUD-free captures; --rapid-stream for automatic chunk travel.\n",
                 "       ./run.sh --stress N | --playtest | --flight-test\n",
                 "       ./run.sh --survey X Z HEIGHT PITCH YAW (angles in radians)\n",
                 "WASD walk, Shift sprint, Space jump, right-drag orbit, wheel zoom.\n",
@@ -699,6 +709,9 @@ fn parse_options() -> LaunchOptions {
         if a == "--showcase" {
             colony_demo = true;
         }
+        if a == "--photo" {
+            photo = true;
+        }
         if a == "--flight" {
             start_flight = true;
         }
@@ -709,7 +722,7 @@ fn parse_options() -> LaunchOptions {
         if a == "--load" && i + 1 < argv.len {
             let n, ok = parse_int(argv[i + 1]);
             if ok {
-                initial_load = clamp(n, 32, 2000);
+                initial_load = clamp(n, 32, showcase::MAX_LOAD);
             }
             i++;
         }
@@ -952,6 +965,7 @@ fn developer_actions(dt: f32) {
     scene::inspector_target = dev::pinned;
     scene::detached_view = flight::enabled;
     scene::view_center = streaming_focus();
+    scene::visible_distance = if flight::enabled { 1200.0 } else { 420.0 };
 }
 
 fn advance_simulation(dt: f32) -> stats::Frame {
@@ -1007,8 +1021,10 @@ fn run_frames() -> i64 {
         hud::developer_mode = dev::mode;
         dev::flight_active = flight::enabled;
         dev::flight_altitude = eye.y - world::height(eye.x, eye.z);
-        hud::draw(selected, link_source, ground);
-        dev::draw(selected);
+        if !photo {
+            hud::draw(selected, link_source, ground);
+            dev::draw(selected);
+        }
         let ui_build_ms = (clock() - ui_build_started) * 1000.0;
         let controls_started = clock();
         if hud::developer_requested {
@@ -1062,13 +1078,16 @@ fn run_frames() -> i64 {
         hud::quality = radius;
         let render_started = clock();
         scene::draw(
-            eye, camera_target, sim::day, sim::elapsed, selected, if flight::enabled { 0 } else { hud::chosen }, ground,
+            eye, camera_target, sim::day, sim::elapsed, if photo { ecs::Handle {} } else { selected },
+            if flight::enabled || photo { 0 } else { hud::chosen }, ground,
             sim::can_build(hud::chosen), shadows,
         );
         sample.render_ms = (clock() - render_started) * 1000.0;
         let ui_started = clock();
-        dev::present();
-        hud::present();
+        if !photo {
+            dev::present();
+            hud::present();
+        }
         sample.ui_ms = ui_build_ms + (clock() - ui_started) * 1000.0;
         if benchmark {
             let wait_started = clock();
@@ -1223,6 +1242,7 @@ fn main() {
     scene::sync(world::MAX_CHUNKS);
     scene::detached_view = flight::enabled;
     scene::view_center = streaming_focus();
+    scene::visible_distance = if flight::enabled { 1200.0 } else { 420.0 };
     if flight::enabled {
         render::horizon_edge = flight::horizon_distance(world::height(eye.x, eye.z));
     }

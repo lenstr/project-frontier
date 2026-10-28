@@ -875,3 +875,20 @@ Secondary (UI):
 - "0 / 0 Meadow" at the bottom-right is low-contrast text over a rock. Either put it in a small
   panel aligned with the hotbar baseline, or move the biome name into the day/power card.
 - The pads read slate (`#435360`), not navy; this resolves together with fix 1.
+
+
+## Large colony implementation follow-up (2026-10-28)
+
+The user's request for a larger colony with more interesting topology supersedes the original
+10×10 district grid in §11.5. The implemented shared polar plan has a 624 m footprint, six
+sectors, an inner circular cargo spine and six radial avenues. Full load is 12,000 ordinary
+simulation entities, including 587 production blocks and 2,348 robots. Sector outlines vary
+through a plaza, offset rows, freight-yard gaps and an entry notch. Utility stacks, tank farms,
+gantries and a 72 m landmark provide a skyline; these structures are explicitly scenery.
+The deterministic platform and vegetation clearance expand to fit the campus.
+
+Opus 5.5 opened all four proposed captures and found no material composition blockers. README
+uses the avenue as its lead, then the low aerial and complete landscape overview. The dusk
+variant was rejected as redundant and muddy. Remaining non-blocking observations: the daytime
+planet looks subdued in the avenue shot, and repeated cells become a texture at aerial distance.
+The low view provides individual machine detail; no motion review was claimed.

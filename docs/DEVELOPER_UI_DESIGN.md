@@ -169,7 +169,7 @@ game immediately.
 | | Visibility | 600..2400 m, 50 | 1600 |
 | | Shadows | toggle | on |
 | SCENE | Vegetation density | 0.5..3.0 ×, 0.1 | 1.0 |
-| LOAD | Colony load | 32..2000 entities, 32; button `Load factory` applies it | 512 |
+| LOAD | Colony load | 32..12000 entities, 32; button `Load factory` applies it | 512 |
 | | Entities | buttons `Spawn 1 000`, `Destroy 1 000` | |
 | | Robots | button `+10 robots` | |
 
@@ -214,3 +214,10 @@ Controls now distinguishes **Gameplay chunk radius** (the existing 2–8 chunk s
 streamed two-metre visual terrain tiles and does not enlarge simulation residency. World
 shows the configured visual radius, active/queued tile counts, cumulative visual worker CPU
 and GPU-upload cost. Existing row styling, reset controls and units apply.
+
+
+## Large campus extension
+
+The load control now spans 32–12,000 entities. The six-sector campus uses a circular spine and
+radial avenues; Home frames it from 400 m when the showcase is enabled. `--photo` hides the
+HUD and developer panel for screenshots without pausing or replacing the simulation.

@@ -6,6 +6,7 @@ import vec;
 import math;
 import os;
 import .types;
+import .colony_layout;
 
 let CHUNK_SIZE = 32;
 let GRID = 17;
@@ -103,7 +104,9 @@ fn district_distance(x: f32, z: f32) -> f32 {
     let v = -dx * 0.77 - dz * 0.64;
     let outside_u = max(abs(u) - 88.0, 0.0);
     let outside_v = max(abs(v) - 80.0, 0.0);
-    sqrt(outside_u * outside_u + outside_v * outside_v)
+    let original = sqrt(outside_u * outside_u + outside_v * outside_v);
+    let expanded = max(sqrt(dx * dx + dz * dz) - estate::RADIUS, 0.0);
+    min(original, expanded)
 }
 
 fn natural_weight(x: f32, z: f32) -> f32 {
@@ -284,6 +287,11 @@ fn visual_height(x: f32, z: f32) -> f32 {
 }
 
 fn height(x: f32, z: f32) -> f32 {
+    // A three-metre inset guarantees all four two-metre grid corners lie
+    // on the flat campus. Edits always take the ordinary interpolated path.
+    if edits.len == 0 && estate::contains(x, z, -3.0) {
+        return 1.8;
+    }
     let gx = floor(x / 2.0) as i64;
     let gz = floor(z / 2.0) as i64;
     let tx = x / 2.0 - gx;

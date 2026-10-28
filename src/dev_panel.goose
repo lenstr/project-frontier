@@ -612,6 +612,8 @@ fn world_page() {
     metric("Depletion records", count_text(stats::counters.depletion_records), IVORY);
     heading("GPU RESOURCES / APPLICATION COUNTERS");
     metric("Terrain GPU meshes", count_text(scene::mesh_count), CYAN);
+    metric("Cached machine batches", count_text(scene::building_live_meshes), CYAN);
+    metric("Machine uploads / releases", str(count_text(scene::building_uploads), " / ", count_text(scene::building_releases)), IVORY);
     metric("Horizon meshes / triangles", str(count_text(horizon::mesh_count), " / ", count_text(horizon::triangles)), IVORY);
     metric("Distant plants / canopies", count_text(horizon::foliage_objects), CYAN);
     metric("Distant foliage triangles", count_text(horizon::foliage_triangles), IVORY);
@@ -916,7 +918,7 @@ fn controls_page() {
     ui::checkbox_label(context, "Sun shadows", settings.shadows);
     ui::checkbox_label(context, "Wireframe", settings.show_wireframe);
     heading("LOAD / MEASURE REUSE");
-    integer_row("Colony load", settings.load, 32, 2000, 32, 512);
+    integer_row("Colony load", settings.load, 32, 12000, 32, 512);
     ui::layout_row_dynamic(context, 31.0, 2);
     if ui::button_label(context, "Load factory") {
         actions.build_showcase = true;

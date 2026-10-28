@@ -143,7 +143,7 @@ fn verify_district_visuals() {
     let axis_x: f32 = -0.77 * 400.0;
     let axis_z: f32 = -0.64 * 400.0;
     assert(!scene::clear_for_grove(axis_x, axis_z, true));
-    assert(scene::clear_for_grove(axis_x, axis_z, false));
+    assert(!scene::clear_for_grove(axis_x, axis_z, false));
     assert(scene::district_light_fade(0.375) == 0.0);
     assert(scene::district_light_fade(0.45) == 0.0);
     assert(scene::district_light_fade(0.49) > 0.0);
@@ -166,7 +166,7 @@ fn verify_district_visuals() {
         }
     }
     var outside: ft::Vertex[>..] = [];
-    scene::district_windows(outside, sim::SMELTER, float3_0, 0.0);
+    scene::district_windows(outside, sim::SMELTER, float3 { 600.0, 1.8, 600.0 }, 0.0);
     assert(outside.len == 0);
 
     var lit: ft::Vertex[>..] = [];
@@ -178,16 +178,16 @@ fn verify_district_visuals() {
     var unlit_signal: i64 = 0;
     for vertex in lit {
         top = max(top, vertex.pos.y - showcase::tower_position.y);
-        if vertex.pos.y - showcase::tower_position.y > 44.0 && vertex.color.x == 1.0 {
+        if vertex.pos.y - showcase::tower_position.y > 71.0 && vertex.color.x == 1.0 {
             lit_signal++;
         }
     }
     for vertex in unlit {
-        if vertex.pos.y - showcase::tower_position.y > 44.0 && vertex.color.x == 1.0 {
+        if vertex.pos.y - showcase::tower_position.y > 71.0 && vertex.color.x == 1.0 {
             unlit_signal++;
         }
     }
-    assert(top > 45.0 && top < 47.0);
+    assert(top > 72.0 && top < 74.0);
     assert(lit_signal > 0 && unlit_signal == 0);
     assert(!sim::objective_done);
     showcase::enabled = false;

@@ -4,29 +4,34 @@ A playable third-person exploration and automation game, written in **Goose**. M
 heightfield world, build a small industrial colony, move cargo over animated rails and with
 autonomous robots, and power a planetary beacon to complete the expedition.
 
-![The expanded world and a running colony](artifacts/frontier-v2-play.png)
+![An industrial avenue through the 12,000-entity colony](artifacts/colony-metropolis-avenue.png)
 
 ## Colony at scale
 
-Actual in-game captures of the generated **2,000-entity showcase colony**, including production
-machines, solar arrays, cargo infrastructure and robots. This is a simulation workload with
-finite feedstock and running production queues, rather than 2,000 separate factories.
+The live showcase now grows to **12,000 entities across a 624 m campus**: six industrial
+sectors around a circular cargo spine, linked by six radial avenues. At full load it contains
+**587 production blocks, 1,174 smelters, 1,174 assemblers, 3,522 solar arrays and 2,348 robots**,
+plus storage and power infrastructure. Every production block has a directed cargo route to
+the central store; these are ordinary game entities with finite feedstock and production queues.
+The 72 m communications landmark, utility stacks, tank farms and moving gantries are scenery.
 
-![Dense rows of production machines and solar arrays along the colony's central cargo spine](artifacts/colony-scale-factories.png)
+![Six dense industrial sectors around a ring and radial cargo avenues](artifacts/colony-metropolis-factories.png)
 
-Low survey flight shows individual machines and repeated production blocks extending toward
-the communications tower, with the fungal forest and amber cliffs beyond.
+Different sector outlines include a plaza, offset curved rows, gaps in the freight yards and
+an open entry gate. The ring closes transport loops instead of repeating a single rectangular grid.
 
-![The full industrial district seen from 210 metres above the surrounding valley](artifacts/colony-scale-overview.png)
+![The entire 624 metre industrial campus in its surrounding alien landscape](artifacts/colony-metropolis-overview.png)
 
-From 210 m above ground, the full district grid and its central spine fit into one view.
-Both screenshots are unedited 1920×1080 captures from the running application. Reproduce them with:
+These are unedited 1920×1080 captures of the running game, with the HUD hidden using `--photo`.
+Reproduce the avenue, district and landscape views with:
 
 ```sh
-./run.sh --showcase --load 2000 --survey 0 -15 65 0.43 0.873 --time 0.375 \
-  --offscreen --frames 600 --mute --screenshot artifacts/colony-scale-factories.png
-./run.sh --showcase --load 2000 --survey 50 45 210 0.70 0.873 --time 0.375 \
-  --offscreen --frames 600 --mute --screenshot artifacts/colony-scale-overview.png
+./run.sh --showcase --load 12000 --survey -10 100 18 0.08 0.51 --time 0.375 \
+  --offscreen --photo --frames 180 --mute --screenshot artifacts/colony-metropolis-avenue.png
+./run.sh --showcase --load 12000 --survey 140 180 220 0.52 0.75 --time 0.375 \
+  --offscreen --photo --frames 180 --mute --screenshot artifacts/colony-metropolis-factories.png
+./run.sh --showcase --load 12000 --survey 400 300 500 0.68 0.915 --time 0.375 \
+  --offscreen --photo --frames 180 --mute --screenshot artifacts/colony-metropolis-overview.png
 ```
 
 ## Run
@@ -65,7 +70,7 @@ through the official extension. Run the bootstrap before opening sources in a fr
 ./run.sh --showcase --devtools       # 512 real colony entities, interactive engine inspector
 ./run.sh --showcase --flight         # Fly above the whole industrial district
 ./run.sh --survey 465 -854 45 0.12 2.64 # X Z, metres above ground, pitch/yaw in radians
-./run.sh --showcase --load 2000      # Large finite-input factory workload
+./run.sh --showcase --load 12000 --flight # Six-sector industrial campus
 ./run.sh --demo                     # The original small working colony
 ./run.sh --help
 ./tools/package-macos.sh            # Rebuild the local .app
@@ -108,7 +113,8 @@ The **Beacon** costs **20 Alloy, 10 Glacite and 8 Circuits**. Supply its 8 kW de
 45 seconds to transmit. A cyan sky beam marks success; exploration and production continue.
 The public-API progression test completes this loop without resource grants.
 
-Survey flight starts about 130 m above the base, with the entire district in view. The suit
+Survey flight starts about 130 m above the base. With the showcase enabled, Home and
+`--flight` frame its campus from 400 m above ground. The suit
 stays in place and the colony keeps running. Detailed chunks and distant terrain follow the
 camera's view; flying does not teleport the player or edit the save. G returns to the suit.
 Flight terrain covers 12–16 km. Visual-only trees and hoodoos continue as reduced individual
@@ -137,7 +143,7 @@ button also opens it. Its five tabs are:
 - **World:** a live chunk map, worker queue/generation timings, horizon LOD and GPU resource counts.
 - **Goose:** live/free/retained entity and collection pools, reuse history and a repeatable churn action.
 - **Controls:** simulation speed, pause/step, time of day, streaming radius, fog, vegetation,
-  shadows, wireframe, robot planning budget and a 32–2,000 entity colony load slider.
+  shadows, wireframe, robot planning budget and a 32–12,000 entity colony load slider.
 - **Inspect:** pin an entity with the Pick button or middle click, inspect inventories, queues
   and links, and follow a linked machine. Destroyed/reused handles are rejected visibly.
 
