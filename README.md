@@ -6,6 +6,29 @@ autonomous robots, and power a planetary beacon to complete the expedition.
 
 ![The expanded world and a running colony](artifacts/frontier-v2-play.png)
 
+## Colony at scale
+
+Actual in-game captures of the generated **2,000-entity showcase colony**, including production
+machines, solar arrays, cargo infrastructure and robots. This is a simulation workload with
+finite feedstock and running production queues, rather than 2,000 separate factories.
+
+![Dense rows of production machines and solar arrays along the colony's central cargo spine](artifacts/colony-scale-factories.png)
+
+Low survey flight shows individual machines and repeated production blocks extending toward
+the communications tower, with the fungal forest and amber cliffs beyond.
+
+![The full industrial district seen from 210 metres above the surrounding valley](artifacts/colony-scale-overview.png)
+
+From 210 m above ground, the full district grid and its central spine fit into one view.
+Both screenshots are unedited 1920×1080 captures from the running application. Reproduce them with:
+
+```sh
+./run.sh --showcase --load 2000 --survey 0 -15 65 0.43 0.873 --time 0.375 \
+  --offscreen --frames 600 --mute --screenshot artifacts/colony-scale-factories.png
+./run.sh --showcase --load 2000 --survey 50 45 210 0.70 0.873 --time 0.375 \
+  --offscreen --frames 600 --mute --screenshot artifacts/colony-scale-overview.png
+```
+
 ## Run
 
 On macOS Apple Silicon, the development executable is `build/frontier`. The macOS application
